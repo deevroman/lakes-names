@@ -1,0 +1,106 @@
+name: Update water data
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      dump_date:
+        description: 'Дата архивного дампа Geofabrik в формате YYYY-MM-DD; оставьте пустой для russia-latest'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-water-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Osmium and DuckDB
+        env:
+          DUCKDB_VERSION: v1.5.5
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes osmium-tool unzip
+          curl --fail --location --retry 3 --output "$RUNNER_TEMP/duckdb.zip" \
+            "https://github.com/duckdb/duckdb/releases/download/${DUCKDB_VERSION}/duckdb_cli-linux-amd64.zip"
+          unzip -q "$RUNNER_TEMP/duckdb.zip" -d "$RUNNER_TEMP/duckdb"
+          chmod +x "$RUNNER_TEMP/duckdb/duckdb"
+          echo "$RUNNER_TEMP/duckdb" >> "$GITHUB_PATH"
+
+      - name: Download the current Geofabrik dump
+        id: dump
+        env:
+          GEOFABRIK_URL: https://download.geofabrik.de/russia-latest.osm.pbf
+          REQUESTED_DUMP_DATE: ${{ inputs.dump_date }}
+        run: |
+          set -euo pipefail
+          headers="$RUNNER_TEMP/geofabrik-headers.txt"
+          source_pbf="$RUNNER_TEMP/russia-latest.osm.pbf"
+          if [[ -n "$REQUESTED_DUMP_DATE" ]]; then
+            if [[ ! "$REQUESTED_DUMP_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! date --date="$REQUESTED_DUMP_DATE" +%F >/dev/null; then
+              echo 'dump_date must use YYYY-MM-DD' >&2
+              exit 1
+            fi
+            compact_date="$(date --date="$REQUESTED_DUMP_DATE" +%y%m%d)"
+            geofabrik_url="https://download.geofabrik.de/russia-${compact_date}.osm.pbf"
+          else
+            geofabrik_url="$GEOFABRIK_URL"
+          fi
+          curl --fail --location --retry 3 --retry-all-errors --dump-header "$headers" \
+            --output "$source_pbf" "$geofabrik_url"
+
+          dump_timestamp="$(osmium fileinfo --get header.option.osmosis_replication_timestamp "$source_pbf" || true)"
+          if [[ "$dump_timestamp" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T ]]; then
+            dump_date="${dump_timestamp%%T*}"
+          else
+            last_modified="$(grep -i '^last-modified:' "$headers" | tail -n1 | cut -d' ' -f2- | tr -d '\r')"
+            dump_date="$(date --utc --date="$last_modified" +%F)"
+          fi
+          printf 'date=%s\n' "$dump_date" >> "$GITHUB_OUTPUT"
+          printf 'source=%s\n' "$source_pbf" >> "$GITHUB_OUTPUT"
+
+      - name: Filter natural=water and export Parquet
+        env:
+          DUMP_DATE: ${{ steps.dump.outputs.date }}
+          SOURCE_PBF: ${{ steps.dump.outputs.source }}
+        run: |
+          set -euo pipefail
+          filtered_pbf="$RUNNER_TEMP/water.osm.pbf"
+          output="data/water-objects-${DUMP_DATE}.parquet"
+          osmium tags-filter --overwrite --output "$filtered_pbf" "$SOURCE_PBF" \
+            n/natural=water w/natural=water r/natural=water
+          ln -s "$filtered_pbf" water.pbf
+          sed "s|data/water-objects.parquet|${output}|g" export_water.sql > "$RUNNER_TEMP/export_water.sql"
+          duckdb < "$RUNNER_TEMP/export_water.sql"
+          rm water.pbf
+          test -s "$output"
+
+      - name: Point the site to the new dump
+        env:
+          DUMP_DATE: ${{ steps.dump.outputs.date }}
+        run: |
+          printf '{\n  "parquet": "water-objects-%s.parquet",\n  "dump_date": "%s"\n}\n' "$DUMP_DATE" "$DUMP_DATE" > data/dataset.json
+
+      - name: Create pull request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automation/update-water-data
+          delete-branch: true
+          commit-message: 'Update water data (${{ steps.dump.outputs.date }})'
+          title: 'Update water data: ${{ steps.dump.outputs.date }}'
+          body: |
+            Automatic update from the current Geofabrik Russia extract.
+
+            The previous Parquet files are retained; `data/dataset.json` selects this dump for the site.
+          add-paths: |
+            data/water-objects-${{ steps.dump.outputs.date }}.parquet
+            data/dataset.json

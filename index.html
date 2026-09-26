@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Страничка для изучения имён водных объектов России в OpenStreetMap." />
+    <title>Названия озёр в OSM</title>
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="query-card">
+        <div class="query-layout">
+          <div class="query-editor">
+            <label class="sr-only" for="query">SQL-запрос</label>
+            <textarea id="query" spellcheck="false" rows="14">-- natural=water + name, отобранные из дампа OpenStreetMap России от 2026-09-24.
+
+SELECT * FROM water_objects;
+
+-- Всё работает полностью в браузере благодаря DuckDB. Данные обновляются раз в сутки.
+-- Исходный код и данные в формате Parquet: https://github.com/deevroman/lakes-names
+
+-- Не стесняйтесь исправлять кривые теги! (https://github.com/Zverik/osmtags-editor в помощь)
+-- И участвуйте в обсуждении соглашения о названиях на форуме: https://c.osm.org/t/148024/18
+
+-- А ниже примеры интересных запросов
+</textarea>
+            <script>
+              try {
+                const url = new URL(window.location.href);
+                const hasSharedQuery = url.searchParams.has('q');
+                const query = hasSharedQuery ? url.searchParams.get('q') : window.localStorage.getItem('lakes-names:query');
+                if (query !== null) document.getElementById('query').value = query;
+                if (hasSharedQuery) {
+                  try { window.localStorage.setItem('lakes-names:query', query); } catch {}
+                  url.searchParams.delete('q');
+                  window.history.replaceState(null, '', url);
+                }
+              } catch {}
+            </script>
+            <div class="examples" aria-label="Примеры запросов">
+              <button id="run-query" type="button" disabled>Выполнить</button>
+              <button id="share-query" type="button" aria-label="Поделиться запросом" title="Поделиться запросом">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="18" cy="5" r="2.25" /><circle cx="6" cy="12" r="2.25" /><circle cx="18" cy="19" r="2.25" /><path d="m8 11 7.8-4.6M8 13l7.8 4.6" /></svg>
+              </button>
+              <button id="query-all" type="button" data-query="all">Все данные</button>
+              <button id="query-lake" type="button" data-query="lake">water=lake</button>
+              <button id="query-popularity" type="button" data-query="popularity">Топ названий</button>
+              <button id="query-normalized" type="button" data-query="normalized">Нормированный топ</button>
+              <button id="query-plural" type="button" data-query="plural">ОзёрА</button>
+              <button id="query-ozerki" type="button" data-query="ozerki">Озерки</button>
+              <button id="query-non-lake-named" type="button" data-query="nonLakeNamed">water ≠ lake</button>
+              <button id="query-forms" type="button" data-query="forms">🔥Формы имени</button>
+              <button id="query-water-values" type="button" data-query="water-values">Значения water</button>
+              <button id="query-name-length" type="button" data-query="name-length">Длинные name</button>
+              <button id="query-name-whitespace" type="button" data-query="name-whitespace">Пробелы в name</button>
+              <button id="query-name-symbols" type="button" data-query="name-symbols">Символы в name</button>
+              <button id="query-tags" type="button" data-query="tags">Работа с сырыми тегами </button>
+              <button id="query-salty-ponds" type="button" data-query="salty-ponds">Солёные пруды</button>
+              <button id="query-wikidata" type="button" data-query="wikidata">С wikidata</button>
+            </div>
+          </div>
+          <aside class="map-panel" aria-label="Карта точек результата">
+            <div id="map"></div>
+            <label class="imagery-toggle">
+              <input id="imagery-toggle" type="checkbox" />
+              <span>ESRI</span>
+            </label>
+          </aside>
+        </div>
+      </section>
+
+      <section class="results" aria-live="polite" aria-label="Результаты SQL-запроса">
+        <div class="results-meta-row">
+          <span id="result-meta" class="result-meta"></span>
+        </div>
+        <p id="error" class="error" hidden></p>
+        <div id="table-wrap" class="table-wrap">
+          <p class="placeholder">Инициализация DuckDB...</p>
+        </div>
+      </section>
+
+    </main>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
