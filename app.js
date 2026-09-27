@@ -113,15 +113,17 @@ WITH classified AS (
     name,
     CASE
     WHEN regexp_matches(name, '(?i)оз[её]ра') THEN '01. Множественное число: «озёра»'
-    WHEN regexp_matches(name, '(?i)озеро\\s+.+\\s+озеро') THEN '02. Озеро Большое озеро'
-    WHEN regexp_matches(name, '(?i)^.+\\s+озеро$') THEN '03. Заканчивается на « озеро»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '04. Одно слово с финским «ярви»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)(күл|көл|кӱл|күөл|кюел|нуур|нур|нор|холь|сор|гӀуьр|вир|даггар)') THEN '05. Одно слово со словом озеро на других языках'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)озеро') THEN '06. Название из одного слова с «озеро» внутри'
-    WHEN regexp_matches(name, '(?i)^озеро\\s+') THEN '07. Начинается на «озеро»'
-    WHEN regexp_matches(name, '(?i)^\\S+ое$') THEN '08. Одно слово с окончанием на «-ое»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') THEN '09. Одно слово'
-    ELSE '10. другой вид'
+    WHEN regexp_matches(name, '(?i)озеро\\s+.+\\s+озеро') THEN '02. Два отдельных слова «озеро»'
+    WHEN regexp_matches(name, '(?i)озеро\\s+.+озеро') THEN '03. Слово «озеро» дважды в названии как подстрока'
+    WHEN regexp_matches(name, '(?i)^.+\\s+озеро$') THEN '04. Заканчивается отдельным словом «озеро»'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '05. name из одного слова с финским «ярви»'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)(күл|көл|кӱл|күөл|кюел|нуур|нур|нор|холь|сор|гӀуьр|вир|даггар)') THEN '06. name из одного слова со словом озеро на других языках'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)озеро') THEN '07. name из одного слова с «озеро» внутри'
+    WHEN regexp_matches(name, '(?i)^озеро\\s+') THEN '08. Начинается на «озеро»'
+    WHEN regexp_matches(name, '(?i)^\\S+(ое|ее)$') THEN '09. Одно слово с окончанием на «-ое», «-ее»'
+    WHEN regexp_matches(name, '(?i)^\\S+$') THEN '10. Одно слово'
+    WHEN regexp_matches(name, '(?i)озеро') THEN '11. Несколько слов, одно из них «озеро»'
+    ELSE '12. другой вид'
   END AS form
   FROM water_objects
   WHERE water = 'lake'
