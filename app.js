@@ -98,7 +98,7 @@ WHERE has_non_russian_letter
    OR has_digit_without_letter
    OR has_special_symbol
 ORDER BY name;`,
-  forms: `-- Попробуем разложить названия у water=lake по группам
+  forms: `-- Попробуем разложить названия у water=lake по группам. Названия без кириллицы пропускаем.
 WITH classified AS (
   SELECT
     name,
@@ -106,9 +106,9 @@ WITH classified AS (
     WHEN regexp_matches(name, '(?i)оз[её]ра') THEN '01. Множественное число: «озёра»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+\\s+озеро') THEN '02. Озеро Большое озеро'
     WHEN regexp_matches(name, '(?i)^.+\\s+озеро$') THEN '03. Заканчивается на « озеро»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)озеро') THEN '04. Название из одного слова с «озеро» внутри'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '05. Одно слово с «ярви»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)(күл|көл|кӱл|күөл|кюел|нуур|нур|нор|холь|сор|гӀуьр|вир|даггар)') THEN '06. Одно слово: озеро на другом языке'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '04. Одно слово с финским «ярви»'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)(күл|көл|кӱл|күөл|кюел|нуур|нур|нор|холь|сор|гӀуьр|вир|даггар)') THEN '05. Одно слово со словом озеро на других языках'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)озеро') THEN '06. Название из одного слова с «озеро» внутри'
     WHEN regexp_matches(name, '(?i)^озеро\\s+') THEN '07. Начинается на «озеро»'
     WHEN regexp_matches(name, '(?i)^\\S+ое$') THEN '08. Одно слово с окончанием на «-ое»'
     WHEN regexp_matches(name, '(?i)^\\S+$') THEN '09. Одно слово'
@@ -138,7 +138,7 @@ FROM water_objects
 WHERE regexp_matches(name, '(?i)оз[её]р[^ао]')
 ORDER BY name;`,
   nonLakeNamed: `-- Перед тем как узнать в каком формате названия у озёр
--- узнаем, а какие много ли озёр не имеют тега water=lake
+-- узнаем, а много ли озёр не имеют тега water=lake
 
 SELECT * EXCLUDE (tags_json)
 FROM water_objects
