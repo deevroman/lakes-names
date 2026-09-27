@@ -77,7 +77,7 @@ WITH checked AS (
     regexp_matches(name, '[[:space:]]{2,}') AS has_repeated_space
   FROM water_objects
 )
-SELECT * EXCLUDE (tags_json)
+SELECT * EXCLUDE (intermittent, salt, tags_json)
 FROM checked
 WHERE has_edge_space
    OR has_repeated_space
