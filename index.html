@@ -7,8 +7,8 @@
     <title>Названия озёр в OSM</title>
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
-    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+    <link rel="stylesheet" href="vendor/maplibre/maplibre-gl.css" />
+    <link rel="stylesheet" href="vendor/codemirror/codemirror.min.css" />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -85,8 +85,17 @@ SELECT * FROM water_objects;
       </section>
 
     </main>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/sql/sql.min.js"></script>
+    <script src="vendor/codemirror/codemirror.min.js"></script>
+    <script src="vendor/codemirror/mode/sql/sql.min.js"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "apache-arrow": "./vendor/apache-arrow/apache-arrow.mjs",
+          "/npm/flatbuffers@24.3.25/+esm": "./vendor/apache-arrow/flatbuffers.mjs",
+          "/npm/tslib@2.6.3/+esm": "./vendor/apache-arrow/tslib.mjs"
+        }
+      }
+    </script>
     <script type="module" src="app.js"></script>
   </body>
 </html>

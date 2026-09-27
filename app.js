@@ -1,7 +1,6 @@
-// Pin an existing, tested browser package version.  DuckDB's native/CLI
-// versioning is independent from the npm package version.
-import * as duckdb from 'https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.32.0/+esm';
-import * as maplibregl from 'https://unpkg.com/maplibre-gl@6.11.2/dist/maplibre-gl.mjs';
+// Vendored browser dependencies: DuckDB-Wasm 1.32.0 and MapLibre GL 6.11.2.
+import * as duckdb from './vendor/duckdb/duckdb-browser.mjs';
+import * as maplibregl from './vendor/maplibre/maplibre-gl.mjs';
 
 let datasetUrl = new URL('./data/water-objects.parquet', window.location.href).href;
 let dumpDate = '2026-09-24';
@@ -14,6 +13,16 @@ const DEFAULT_BOUNDS = [
   [-179.98762718593395, 41.221523435604816],
   [179.98308310354122, 81.16125090717857],
 ];
+const DUCKDB_BUNDLES = {
+  mvp: {
+    mainModule: new URL('./vendor/duckdb/duckdb-mvp.wasm', import.meta.url).href,
+    mainWorker: new URL('./vendor/duckdb/duckdb-browser-mvp.worker.js', import.meta.url).href,
+  },
+  eh: {
+    mainModule: new URL('./vendor/duckdb/duckdb-eh.wasm', import.meta.url).href,
+    mainWorker: new URL('./vendor/duckdb/duckdb-browser-eh.worker.js', import.meta.url).href,
+  },
+};
 
 function allDataQuery() {
   return `-- natural=water + name, отобранные из дампа OpenStreetMap России от ${dumpDate}.
@@ -633,7 +642,7 @@ async function runQuery(sqlOverride) {
 async function initialise() {
   try {
     await loadDatasetMetadata();
-    const bundle = await duckdb.selectBundle(duckdb.getJsDelivrBundles());
+    const bundle = await duckdb.selectBundle(DUCKDB_BUNDLES);
     const workerUrl = URL.createObjectURL(new Blob([`importScripts('${bundle.mainWorker}');`], { type: 'text/javascript' }));
     const worker = new Worker(workerUrl);
     const db = new duckdb.AsyncDuckDB(new duckdb.VoidLogger(), worker);
