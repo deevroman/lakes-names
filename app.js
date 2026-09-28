@@ -78,6 +78,7 @@ SELECT
 FROM water_objects
 ORDER BY name_length DESC, name;`,
   'name-whitespace': `-- Пробелы по краям и повторяющиеся пробелы
+-- Таких ошибок немного и в идеале результат этого запроса должен быть пустой
 
 WITH checked AS (
   SELECT
