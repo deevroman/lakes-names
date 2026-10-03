@@ -139,6 +139,8 @@ WITH classified AS (
     AND regexp_matches(name, '[А-Яа-яЁё]')
     AND not regexp_matches(name, '^возера')
     AND not regexp_matches(name, '^возеро')
+    AND not regexp_matches(name, 'возера$')
+    AND not regexp_matches(name, 'возеро$')
 )
 SELECT
   form,
