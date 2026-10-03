@@ -76,6 +76,26 @@ tr.map-selected td { animation: map-row-flash 1.6s ease-out; }
 }
 td a { color: #075e60; font-weight: 700; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 .error { margin: 0; padding: 14px clamp(19px, 4vw, 31px); color: #9c3325; background: #fff0ed; border-top: 1px solid #f2c4bd; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .84rem; white-space: pre-wrap; }
+.group-flow { border-top: 1px solid var(--line); }
+.group-flow-heading { display: flex; align-items: baseline; gap: 8px; margin: 0; padding: 9px 8px 0; font-size: .86rem; font-weight: 700; }
+.group-flow-heading span { color: var(--muted); font-size: .78rem; font-weight: 400; }
+.group-flow-layout { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(250px, .75fr); gap: 10px; padding: 7px 8px 10px; }
+.group-flow-chart { min-width: 0; overflow-x: auto; }
+.group-flow-chart svg { display: block; min-width: 760px; width: 100%; height: auto; }
+.group-flow-source { fill: #dff1ee; stroke: #4c9997; }
+.group-flow-link { fill: #bde9e3; opacity: .78; }
+.group-flow-node rect { fill: #eaf4f2; stroke: #9bbfbb; }
+.group-flow-node.is-parent rect { fill: #dff1ee; }
+.group-flow-node:hover rect, .group-flow-node:focus rect, .group-flow-node.is-selected rect { fill: var(--aqua); stroke: var(--deep); stroke-width: 2; }
+.group-flow-node { cursor: pointer; outline: none; }
+.group-flow-node text, .group-flow-source-label { fill: #23474b; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 13px; }
+.group-flow-node-count { fill: #315c61; font-variant-numeric: tabular-nums; }
+.group-flow-detail { min-width: 0; border-left: 1px solid var(--line); padding-left: 10px; }
+.group-flow-detail p { margin: 0; }
+.group-flow-detail-title { font-size: .84rem; font-weight: 700; }
+.group-flow-detail-meta { margin-top: 3px !important; color: var(--muted); font-size: .76rem; }
+.group-flow-names { margin: 8px 0 0; padding-left: 22px; font-size: .8rem; }
+.group-flow-names li { padding: 2px 0; }
 
 code { color: #075e60; font: .88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .virtual-scroller { height: min(70vh, 760px); overflow: auto; }
@@ -88,4 +108,6 @@ code { color: #075e60; font: .88em ui-monospace, SFMono-Regular, Menlo, Consolas
   .shell { padding-top: 16px; }
   .query-layout { grid-template-columns: 1fr; }
   .map-panel, #map { min-height: 260px; }
+  .group-flow-layout { grid-template-columns: 1fr; }
+  .group-flow-detail { border-top: 1px solid var(--line); border-left: 0; padding-top: 8px; padding-left: 0; }
 }

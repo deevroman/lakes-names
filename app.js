@@ -113,26 +113,36 @@ WITH classified AS (
   SELECT
     name,
     CASE
-    WHEN regexp_matches(name, '(?i)оз[её]ра') THEN '01. Множественное число: «озёра»'
+    WHEN regexp_matches(name, '(?i)^оз[её]ра') THEN '01.1. Множественное число | начинается на «озёра»'
+    WHEN regexp_matches(name, '(?i)оз[её]ра') THEN '01.2. Множественное число | «озёра»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+\\s+озеро') THEN '02. Два отдельных слова «озеро»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+озеро') THEN '03. Слово «озеро» дважды в названии как подстрока'
-    WHEN regexp_matches(name, '(?i)^.+\\s+озеро$') THEN '04. Заканчивается отдельным словом «озеро»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '05. name из одного слова с финским «ярви»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)(күл|көл|кӱл|күөл|кюел|нуур|нур|нор|холь|сор|гӀуьр|вир|даггар)') THEN '06. name из одного слова со словом озеро на других языках'
-    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)озеро') THEN '07. name из одного слова с «озеро» внутри'
-    WHEN regexp_matches(name, '(?i)^озеро\\s+') THEN '08. Начинается на «озеро»'
-    WHEN regexp_matches(name, '(?i)^\\S+(ое|ее)$') THEN '09. Одно слово с окончанием на «-ое», «-ее»'
-    WHEN regexp_matches(name, '(?i)^\\S+$') THEN '10. Одно слово'
-    WHEN regexp_matches(name, '(?i)озеро') THEN '11. Несколько слов, одно из них «озеро»'
-    ELSE '12. другой вид'
+    WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее)\\s\\S*озеро$') THEN '04.1. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее *озеро'
+    WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее).*озеро$') THEN '04.2. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее * озеро'
+    -- WHEN regexp_matches(name, '(?i)^(первое|второе|третье|четв[её]ртое|пятое|шестое|седьмое|восьмое|девятое|десятое|одиннадцатое|двенадцатое|тринадцатое|четырнадцатое|пятнадцатое|шестнадцатое|семнадцатое|восемнадцатое|девятнадцатое|двадцатое)\\s+') THEN '04.3. Заканчивается отдельным словом «озеро» | начинается на порядковое числительное'
+    WHEN regexp_matches(name, '(?i)^.+\\s+озеро$') THEN '04.4. Заканчивается отдельным словом «озеро» | прочие'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '05.1. name из одного слова | с финским «ярви»'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)(күл|көл|кӱл|күөл|кюел|нуур|нур|нор|холь|сор|гӀуьр|вир|даггар)') THEN '05.2 name из одного слова | со словом озеро на других языках'
+    WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)озеро') THEN '05.2 name из одного слова | с «озеро» внутри'
+    WHEN regexp_matches(name, '^О') AND regexp_matches(name, '(?i)^озеро\\s+') THEN '08.1. Начинается на «озеро» | с заглавной буквы'
+    WHEN regexp_matches(name, '^о') AND regexp_matches(name, '(?i)^озеро\\s+') THEN '08.2. Начинается на «озеро» | со строчной буквы'
+    WHEN regexp_matches(name, '(?i)^\\S+(ое|ее)$') THEN '09.1. Одно слово | с окончанием на «-ое», «-ее»'
+    WHEN regexp_matches(name, '(?i)^\\S+$') THEN '09.2. Одно слово | прочие'
+    WHEN regexp_matches(name, '(?i)озеро') THEN '13. Несколько слов, одно из них «озеро»'
+    WHEN regexp_matches(name, '/') THEN '99.1. Другое | со слешами'
+    WHEN regexp_matches(name, '[()\\[\\]{}]') THEN '99.2. Другое | со скобками'
+    WHEN regexp_matches(name, '[0-9]') THEN '99.3. Другое | хотя бы одна цифра'
+    ELSE '99.4. Другое | другое'
   END AS form
   FROM water_objects
   WHERE water = 'lake'
     AND regexp_matches(name, '[А-Яа-яЁё]')
+    AND not regexp_matches(name, '^возера')
+    AND not regexp_matches(name, '^возеро')
 )
 SELECT
   form,
-  list_slice(list(DISTINCT name ORDER BY name), 1, 1000) AS names,
+  list(DISTINCT name ORDER BY name) AS names,
   COUNT(*) AS uses
 FROM classified
 GROUP BY form
@@ -217,6 +227,7 @@ const runButton = $('#run-query');
 const queryBox = $('#query');
 const resultMeta = $('#result-meta');
 const tableWrap = $('#table-wrap');
+const groupFlow = $('#group-flow');
 const error = $('#error');
 const imageryToggle = $('#imagery-toggle');
 const shareButton = $('#share-query');
@@ -458,6 +469,7 @@ function renderTable(arrowTable) {
   const columns = arrowTable.schema.fields.map((field) => field.name);
   resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
   updateMap(rows);
+  renderGroupFlow(rows, columns);
   resultView = undefined;
 
   if (!rows.length) {
@@ -521,6 +533,157 @@ function renderTable(arrowTable) {
   resultView = { scroller, renderSlice };
   renderHeader();
   renderSlice();
+}
+
+function clearGroupFlow() {
+  groupFlow.hidden = true;
+  groupFlow.replaceChildren();
+}
+
+function listValues(value) {
+  if (Array.isArray(value)) return value;
+  if (value && typeof value.toArray === 'function') return Array.from(value.toArray());
+  if (value && typeof value[Symbol.iterator] === 'function') return Array.from(value);
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function shortGroupLabel(label) {
+  const text = String(label).replace(/^\d+\.\s*/, '');
+  return text.length > 40 ? `${text.slice(0, 39)}…` : text;
+}
+
+function renderGroupFlow(rows, columns) {
+  if (!['form', 'uses', 'names'].every((column) => columns.includes(column))) {
+    clearGroupFlow();
+    return;
+  }
+
+  const groups = rows.map((row, order) => ({
+    form: String(row.form ?? ''),
+    uses: Number(row.uses),
+    names: listValues(row.names).map(String),
+    order,
+  })).filter((group) => group.form && Number.isFinite(group.uses) && group.uses >= 0);
+  const total = groups.reduce((sum, group) => sum + group.uses, 0);
+  if (!groups.length || !total) {
+    clearGroupFlow();
+    return;
+  }
+
+  const nodes = new Map();
+  groups.forEach((group) => {
+    const match = group.form.match(/^(\d+(?:\.\d+)*)\.\s*(.*)$/);
+    const codes = match ? match[1].split('.') : [String(group.order + 1)];
+    const labels = (match ? match[2] : group.form).split(/\s*\|\s*/);
+    let parent;
+    codes.forEach((_, index) => {
+      const code = codes.slice(0, index + 1).join('.');
+      let node = nodes.get(code);
+      if (!node) {
+        node = {
+          code,
+          depth: index + 1,
+          label: labels[index] || labels.at(-1) || code,
+          order: group.order,
+          parent,
+          children: [],
+          leaves: [],
+          uses: 0,
+        };
+        nodes.set(code, node);
+        if (parent) parent.children.push(node);
+      }
+      node.uses += group.uses;
+      node.leaves.push(group);
+      parent = node;
+    });
+  });
+
+  const allNodes = [...nodes.values()];
+  const leafNodes = allNodes.filter((node) => !node.children.length).sort((left, right) => left.order - right.order);
+  const roots = allNodes.filter((node) => !node.parent).sort((left, right) => left.order - right.order);
+  const maxDepth = Math.max(...allNodes.map((node) => node.depth));
+  const width = maxDepth > 1 ? 1280 : 1040;
+  const top = 42;
+  const gap = 8;
+  const height = Math.max(680, 104 + leafNodes.length * 50);
+  const availableHeight = height - top * 2 - gap * (leafNodes.length - 1);
+  const minimumBandHeight = Math.min(18, availableHeight / leafNodes.length);
+  const distributableHeight = Math.max(0, availableHeight - minimumBandHeight * leafNodes.length);
+  let currentY = top;
+  leafNodes.forEach((node) => {
+    const bandHeight = minimumBandHeight + distributableHeight * (node.uses / total);
+    node.y = currentY;
+    node.height = bandHeight;
+    currentY += bandHeight + gap;
+  });
+  const setParentPositions = (node) => {
+    node.children.forEach(setParentPositions);
+    if (!node.children.length) return;
+    const children = [...node.children].sort((left, right) => left.y - right.y);
+    node.y = children[0].y;
+    node.height = children.at(-1).y + children.at(-1).height - node.y;
+  };
+  roots.forEach(setParentPositions);
+
+  const sourceX = 210;
+  const firstNodeX = 320;
+  const nodeStep = maxDepth > 1 ? 470 : 0;
+  const nodeWidth = maxDepth > 1 ? 390 : 680;
+  allNodes.forEach((node) => { node.x = firstNodeX + (node.depth - 1) * nodeStep; });
+  const sourceHeight = currentY - gap - top;
+  const links = allNodes.map((node) => {
+    const fromX = node.parent ? node.parent.x + nodeWidth : sourceX;
+    const topY = node.y;
+    const bottomY = node.y + node.height;
+    const middleX = (fromX + node.x) / 2;
+    return `<path class="group-flow-link" d="M ${fromX} ${topY} C ${middleX} ${topY}, ${middleX} ${topY}, ${node.x} ${topY} L ${node.x} ${bottomY} C ${middleX} ${bottomY}, ${middleX} ${bottomY}, ${fromX} ${bottomY} Z"></path>`;
+  }).join('');
+  const nodeMarkup = allNodes.map((node) => {
+    const textY = node.y + node.height / 2 + 4;
+    const title = `${node.label}: ${node.uses.toLocaleString('ru-RU')} объектов`;
+    return `<g class="group-flow-node${node.children.length ? ' is-parent' : ''}" data-flow-key="${node.code}" role="button" tabindex="0" aria-label="${escapeAttr(title)}"><title>${escapeHtml(title)}</title><rect x="${node.x}" y="${node.y}" width="${nodeWidth}" height="${node.height}" rx="3"></rect><text x="${node.x + 9}" y="${textY}">${escapeHtml(shortGroupLabel(node.label))}</text><text class="group-flow-node-count" x="${node.x + nodeWidth - 9}" y="${textY}" text-anchor="end">${node.uses.toLocaleString('ru-RU')}</text></g>`;
+  }).join('');
+
+  groupFlow.hidden = false;
+  groupFlow.innerHTML = `<h2 class="group-flow-heading">Расщепление по формам <span>${total.toLocaleString('ru-RU')} объектов</span></h2><div class="group-flow-layout"><div class="group-flow-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="group-flow-svg-title"><title id="group-flow-svg-title">Распределение объектов water=lake по формам имени</title><rect class="group-flow-source" x="20" y="${top}" width="190" height="${sourceHeight}" rx="4"></rect><text class="group-flow-source-label" x="115" y="${height / 2 - 8}" text-anchor="middle">water=lake</text><text class="group-flow-source-label group-flow-node-count" x="115" y="${height / 2 + 12}" text-anchor="middle">${total.toLocaleString('ru-RU')}</text>${links}${nodeMarkup}</svg></div><div class="group-flow-detail"><p class="group-flow-detail-title"></p><p class="group-flow-detail-meta"></p><ol class="group-flow-names"></ol></div></div>`;
+
+  const detailTitle = groupFlow.querySelector('.group-flow-detail-title');
+  const detailMeta = groupFlow.querySelector('.group-flow-detail-meta');
+  const namesList = groupFlow.querySelector('.group-flow-names');
+  const selectGroup = (code) => {
+    const group = nodes.get(code);
+    if (!group) return;
+    groupFlow.querySelectorAll('.group-flow-node').forEach((node) => node.classList.toggle('is-selected', node.dataset.flowKey === code));
+    const names = [...new Set(group.leaves.flatMap((leaf) => leaf.names))].sort((left, right) => left.localeCompare(right, 'ru'));
+    detailTitle.textContent = group.label;
+    detailMeta.textContent = `${names.length.toLocaleString('ru-RU')} названий · ${group.uses.toLocaleString('ru-RU')} объектов`;
+    const fragment = document.createDocumentFragment();
+    names.forEach((name) => {
+      const item = document.createElement('li');
+      item.textContent = name;
+      fragment.append(item);
+    });
+    namesList.replaceChildren(fragment);
+  };
+  groupFlow.querySelectorAll('.group-flow-node').forEach((node) => {
+    const select = () => selectGroup(node.dataset.flowKey);
+    node.addEventListener('click', select);
+    node.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      select();
+    });
+  });
+  selectGroup(leafNodes[0].code);
 }
 
 function sortRows(left, right, direction) {
@@ -625,6 +788,7 @@ function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
 async function runQuery(sqlOverride) {
   if (!connection) return;
   error.hidden = true;
+  clearGroupFlow();
   try {
     const source = typeof sqlOverride === 'string' ? sqlOverride : queryText();
     if (typeof source !== 'string') throw new TypeError('Не удалось прочитать SQL-запрос.');
@@ -636,6 +800,7 @@ async function runQuery(sqlOverride) {
   } catch (reason) {
     resultMeta.textContent = '';
     tableWrap.innerHTML = '<p class="placeholder">Проверьте SQL и попробуйте снова.</p>';
+    clearGroupFlow();
     sqlError(reason);
   } finally {
     runButton.disabled = false;
