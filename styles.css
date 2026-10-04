@@ -54,6 +54,11 @@ textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--de
 .results { margin-top: 5px; overflow: hidden; }
 .results-meta-row { display: flex; min-height: 28px; align-items: center; justify-content: flex-start; padding: 5px 8px; }
 .result-meta { color: var(--muted); font-size: .83rem; white-space: nowrap; }
+#result-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 0; color: var(--muted); background: transparent; }
+#result-toggle:not(:disabled):hover { color: var(--deep); }
+#result-toggle:disabled { cursor: default; }
+.result-toggle-mark { display: inline-block; font-size: .9rem; line-height: 1; transition: transform 120ms ease; }
+#result-toggle[aria-expanded="true"] .result-toggle-mark { transform: rotate(90deg); }
 .table-wrap { min-height: 138px; border-top: 1px solid var(--line); }
 .placeholder { padding: 20px 18px; color: var(--muted); }
 table { width: 100%; border-collapse: collapse; text-align: left; font-size: .86rem; font-variant-numeric: tabular-nums; }

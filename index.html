@@ -76,7 +76,10 @@ SELECT * FROM water_objects;
 
       <section class="results" aria-live="polite" aria-label="Результаты SQL-запроса">
         <div class="results-meta-row">
-          <span id="result-meta" class="result-meta"></span>
+          <button id="result-toggle" type="button" aria-controls="table-wrap" aria-expanded="true" disabled>
+            <span class="result-toggle-mark" aria-hidden="true">▸</span>
+            <span id="result-meta" class="result-meta"></span>
+          </button>
         </div>
         <p id="error" class="error" hidden></p>
         <div id="table-wrap" class="table-wrap">

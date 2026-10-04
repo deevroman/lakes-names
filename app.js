@@ -230,6 +230,7 @@ const $ = (selector) => document.querySelector(selector);
 const runButton = $('#run-query');
 const queryBox = $('#query');
 const resultMeta = $('#result-meta');
+const resultToggle = $('#result-toggle');
 const tableWrap = $('#table-wrap');
 const groupFlow = $('#group-flow');
 const error = $('#error');
@@ -261,6 +262,11 @@ function setActiveExample(queryKey) {
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
   });
+}
+
+function setTableCollapsed(collapsed) {
+  tableWrap.hidden = collapsed;
+  resultToggle.setAttribute('aria-expanded', String(!collapsed));
 }
 
 const map = new maplibregl.Map({
@@ -472,6 +478,8 @@ function renderTable(arrowTable) {
   let rows = originalRows;
   const columns = arrowTable.schema.fields.map((field) => field.name);
   resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
+  resultToggle.disabled = !rows.length;
+  setTableCollapsed(false);
   updateMap(rows);
   renderGroupFlow(rows, columns);
   resultView = undefined;
@@ -806,6 +814,8 @@ out geom;`;
 async function runQuery(sqlOverride) {
   if (!connection) return;
   error.hidden = true;
+  resultToggle.disabled = true;
+  setTableCollapsed(false);
   clearGroupFlow();
   try {
     const source = typeof sqlOverride === 'string' ? sqlOverride : queryText();
@@ -817,6 +827,7 @@ async function runQuery(sqlOverride) {
     renderTable(await connection.query(sql));
   } catch (reason) {
     resultMeta.textContent = '';
+    resultToggle.disabled = true;
     tableWrap.innerHTML = '<p class="placeholder">Проверьте SQL и попробуйте снова.</p>';
     clearGroupFlow();
     sqlError(reason);
@@ -850,6 +861,7 @@ async function initialise() {
 }
 
 runButton.addEventListener('click', () => runQuery());
+resultToggle.addEventListener('click', () => setTableCollapsed(resultToggle.getAttribute('aria-expanded') === 'true'));
 shareButton.addEventListener('click', shareQuery);
 imageryToggle.addEventListener('change', () => setBaseMap(imageryToggle.checked));
 if (!queryEditor) {
