@@ -52,9 +52,9 @@ textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--de
 #share-query[data-status]::after { position: absolute; z-index: 3; top: calc(100% + 5px); left: 0; padding: 4px 6px; border: 1px solid #b5ccca; border-radius: 5px; color: #315c61; background: #fffefa; box-shadow: 0 2px 9px rgb(12 61 58 / 10%); content: attr(data-status); font-size: .72rem; font-weight: 500; white-space: nowrap; }
 
 .results { margin-top: 5px; overflow: hidden; }
-.results-meta-row { display: flex; min-height: 28px; align-items: center; justify-content: flex-start; padding: 5px 8px; }
+.results-meta-row { display: flex; min-height: 28px; align-items: center; justify-content: flex-start; }
 .result-meta { color: var(--muted); font-size: .83rem; white-space: nowrap; }
-#result-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 0; color: var(--muted); background: transparent; }
+#result-toggle { display: inline-flex; width: 100%; min-height: 28px; align-items: center; gap: 5px; padding: 5px 8px; color: var(--muted); background: transparent; text-align: left; }
 #result-toggle:not(:disabled):hover { color: var(--deep); }
 #result-toggle:disabled { cursor: default; }
 .result-toggle-mark { display: inline-block; font-size: .9rem; line-height: 1; transition: transform 120ms ease; }

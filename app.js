@@ -113,6 +113,7 @@ WITH classified AS (
   SELECT
     name,
     CASE
+    WHEN regexp_matches(name, '(?i)(болот|пруд|водохранил|стариц)') THEN '00. В названии: болото, пруд, водохранилище, старица'
     WHEN regexp_matches(name, '(?i)^озёра') THEN '01.1. Множественное число | начинается на «озёра» через «ё»'
     WHEN regexp_matches(name, '(?i)^озера') THEN '01.2. Множественное число | начинается на «озёра» через «е»'
     WHEN regexp_matches(name, '(?i)озёра') THEN '01.3. Множественное число | «озёра» через «ё»'
