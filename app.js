@@ -113,8 +113,10 @@ WITH classified AS (
   SELECT
     name,
     CASE
-    WHEN regexp_matches(name, '(?i)^оз[её]ра') THEN '01.1. Множественное число | начинается на «озёра»'
-    WHEN regexp_matches(name, '(?i)оз[её]ра') THEN '01.2. Множественное число | «озёра»'
+    WHEN regexp_matches(name, '(?i)^озёра') THEN '01.1. Множественное число | начинается на «озёра» через «ё»'
+    WHEN regexp_matches(name, '(?i)^озера') THEN '01.2. Множественное число | начинается на «озёра» через «е»'
+    WHEN regexp_matches(name, '(?i)озёра') THEN '01.3. Множественное число | «озёра» через «ё»'
+    WHEN regexp_matches(name, '(?i)озера') THEN '01.4. Множественное число | «озёра» через «е»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+\\s+озеро') THEN '02. Два отдельных слова «озеро»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+озеро') THEN '03. Слово «озеро» дважды в названии как подстрока'
     WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее)\\s\\S*озеро$') THEN '04.1. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее *озеро'
@@ -616,7 +618,7 @@ function renderGroupFlow(rows, columns) {
   const width = maxDepth > 1 ? 1280 : 1040;
   const top = 42;
   const gap = 8;
-  const height = Math.max(680, 104 + leafNodes.length * 50);
+  const height = Math.max(820, 120 + leafNodes.length * 64);
   const availableHeight = height - top * 2 - gap * (leafNodes.length - 1);
   const minimumBandHeight = Math.min(18, availableHeight / leafNodes.length);
   const distributableHeight = Math.max(0, availableHeight - minimumBandHeight * leafNodes.length);
@@ -671,7 +673,13 @@ function renderGroupFlow(rows, columns) {
     const fragment = document.createDocumentFragment();
     names.forEach((name) => {
       const item = document.createElement('li');
-      item.textContent = name;
+      const link = document.createElement('a');
+      link.href = overpassTurboUrl(name);
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = name;
+      link.setAttribute('aria-label', `Найти «${name}» в Overpass Turbo`);
+      item.append(link);
       fragment.append(item);
     });
     namesList.replaceChildren(fragment);
@@ -786,6 +794,14 @@ function escapeHtml(value) {
 }
 
 function escapeAttr(value) { return escapeHtml(value).replace(/`/g, '&#96;'); }
+
+function overpassTurboUrl(name) {
+  const escapedName = String(name).replace(/[\r\n]/g, ' ').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const query = `[out:json][timeout:90];
+nwr["name"="${escapedName}"];
+out geom;`;
+  return `https://overpass-turbo.eu/?Q=${encodeURIComponent(query)}&R`;
+}
 
 async function runQuery(sqlOverride) {
   if (!connection) return;

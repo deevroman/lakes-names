@@ -96,6 +96,7 @@ td a { color: #075e60; font-weight: 700; text-decoration-thickness: 1px; text-un
 .group-flow-detail-meta { margin-top: 3px !important; color: var(--muted); font-size: .76rem; }
 .group-flow-names { margin: 8px 0 0; padding-left: 22px; font-size: .8rem; }
 .group-flow-names li { padding: 2px 0; }
+.group-flow-names a { color: #075e60; text-decoration-thickness: 1px; text-underline-offset: 2px; }
 
 code { color: #075e60; font: .88em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .virtual-scroller { height: min(70vh, 760px); overflow: auto; }
