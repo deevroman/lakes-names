@@ -136,7 +136,8 @@ WITH classified AS (
     WHEN regexp_matches(name, '/') THEN '99.1. Другое | со слешами'
     WHEN regexp_matches(name, '[()\\[\\]{}]') THEN '99.2. Другое | со скобками'
     WHEN regexp_matches(name, '[0-9]') THEN '99.3. Другое | хотя бы одна цифра'
-    ELSE '99.4. Другое | другое'
+    WHEN regexp_matches(name, '(?i)(малое|большое|верхнее|среднее|нижнее)') THEN '99.4. Другое | Малое/Большое/Верхнее/Среднее/Нижнее'
+    ELSE '99.5. Другое | другое'
   END AS form
   FROM water_objects
   WHERE water = 'lake'
