@@ -40,6 +40,7 @@ textarea { display: block; width: 100%; height: var(--query-height); resize: ver
 textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--deep); }
 .CodeMirror { height: var(--query-height); resize: vertical; overflow: hidden; border: 1px solid #b5ccca; border-radius: 10px; color: #113338; background: #eaf6f3; font: .86rem/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .CodeMirror-focused { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--deep); }
+.CodeMirror.has-modifier-link, .CodeMirror.has-modifier-link * { cursor: pointer !important; }
 .CodeMirror-lines { padding: 10px 0; }
 .CodeMirror pre.CodeMirror-line, .CodeMirror pre.CodeMirror-line-like { padding: 0 10px; }
 .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }

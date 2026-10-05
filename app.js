@@ -249,6 +249,26 @@ const queryEditor = window.CodeMirror?.fromTextArea(queryBox, {
 if (queryEditor && 'ResizeObserver' in window) {
   new ResizeObserver(() => queryEditor.refresh()).observe(queryEditor.getWrapperElement());
 }
+if (queryEditor) {
+  const wrapper = queryEditor.getWrapperElement();
+  const linkAtPointer = (event) => {
+    if (!event.ctrlKey && !event.metaKey) return null;
+    const position = queryEditor.coordsChar({ left: event.clientX, top: event.clientY }, 'window');
+    return urlAtPosition(queryEditor.getLine(position.line), position.ch);
+  };
+  wrapper.addEventListener('mousemove', (event) => {
+    wrapper.classList.toggle('has-modifier-link', Boolean(linkAtPointer(event)));
+  });
+  wrapper.addEventListener('mouseleave', () => wrapper.classList.remove('has-modifier-link'));
+  wrapper.addEventListener('mousedown', (event) => {
+    if (event.button !== 0) return;
+    const url = linkAtPointer(event);
+    if (!url) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, true);
+}
 
 let connection;
 let resultView;
@@ -256,6 +276,19 @@ let mapSelectionTimer;
 let mapRows = [];
 let hasUserQuery = false;
 let isSettingQueryText = false;
+
+function urlAtPosition(line, position) {
+  const urls = /https?:\/\/[^\s<>"'`]+/g;
+  for (const match of line.matchAll(urls)) {
+    let url = match[0].replace(/[.,;:!?]+$/, '');
+    while (url.endsWith(')') && (url.match(/\)/g)?.length || 0) > (url.match(/\(/g)?.length || 0)) {
+      url = url.slice(0, -1);
+    }
+    const start = match.index;
+    if (position >= start && position < start + url.length) return url;
+  }
+  return null;
+}
 
 function setActiveExample(queryKey) {
   document.querySelectorAll('[data-query]').forEach((button) => {
