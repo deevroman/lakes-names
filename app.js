@@ -56,8 +56,7 @@ WHERE water = 'pond'
 SELECT * EXCLUDE (tags_json)
 FROM water_objects
 WHERE wikidata IS NOT NULL;`,
-  wiki: `-- Совпадает ли name с названием русской статьи из тега wikipedia?
--- Префиксы не ru: пропускаются; подчёркивания и уточнения в круглых скобках не учитываются.
+  wiki: `-- Отличающиеся name и wikipedia 
 
 WITH articles AS (
   SELECT
@@ -68,26 +67,26 @@ WITH articles AS (
     wikipedia,
     longitude,
     latitude,
-    replace(name, ' ', '_') AS name_title,
+    name AS name_title,
     regexp_replace(wikipedia, '^ru:', '') AS article_title,
     regexp_replace(
-      replace(name, ' ', '_'),
-      '[_[:space:]]*\\([^)]*\\)', '', 'g'
+      name,
+      '[[:space:]]*\\([^)]*\\)', '', 'g'
     ) AS name_without_parentheses,
     regexp_replace(
       regexp_replace(wikipedia, '^ru:', ''),
-      '[_[:space:]]*\\([^)]*\\)', '', 'g'
+      '[[:space:]]*\\([^)]*\\)', '', 'g'
     ) AS article_without_parentheses,
     regexp_replace(
-      replace(name, ' ', '_'),
-      '(?i)^(озеро|старица|пруд|лагуна|губа|залив)_+', ''
+      name,
+      '(?i)^(озеро|старица|пруд|лагуна|губа|залив)[[:space:]]+', ''
     ) AS name_without_waterbody_prefix,
     regexp_replace(
       regexp_replace(
-        replace(name, ' ', '_'),
-        '(?i)^(озеро|старица|пруд|лагуна|губа|залив)_+', ''
+        name,
+        '(?i)^(озеро|старица|пруд|лагуна|губа|залив)[[:space:]]+', ''
       ),
-      '[_[:space:]]*\\([^)]*\\)', '', 'g'
+      '[[:space:]]*\\([^)]*\\)', '', 'g'
     ) AS name_without_prefix_parentheses
   FROM water_objects
   WHERE regexp_matches(wikipedia, '^ru:')
@@ -106,8 +105,8 @@ matches AS (
       WHEN lower(name_without_parentheses) = lower(article_without_parentheses) THEN '✅ Сматчился'
       WHEN lower(name_without_waterbody_prefix) = lower(article_title) THEN '✅ Сматчился'
       WHEN lower(name_without_prefix_parentheses) = lower(article_without_parentheses) THEN '✅ Сматчился'
-      WHEN lower(regexp_extract(name_without_prefix_parentheses, '^[^_[:space:]]+'))
-         = lower(regexp_extract(article_without_parentheses, '^[^_[:space:]]+'))
+      WHEN lower(regexp_extract(name_without_prefix_parentheses, '^[^[:space:]]+'))
+         = lower(regexp_extract(article_without_parentheses, '^[^[:space:]]+'))
         THEN '🟡 Частично сматчился по первому слову'
       ELSE '❌ Не сматчился'
     END AS status
