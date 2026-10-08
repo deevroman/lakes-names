@@ -96,7 +96,7 @@ td a { color: #075e60; font-weight: 700; text-decoration-thickness: 1px; text-un
 .group-flow-node { cursor: pointer; outline: none; }
 .group-flow-node text, .group-flow-source-label { fill: #23474b; font-family: Inter, ui-sans-serif, system-ui, sans-serif; font-size: 13px; }
 .group-flow-node-count { fill: #315c61; font-variant-numeric: tabular-nums; }
-.group-flow-detail { min-width: 0; border-left: 1px solid var(--line); padding-left: 10px; }
+.group-flow-detail { min-width: 0; border-left: 1px solid var(--line); padding-left: 20px; }
 .group-flow-detail p { margin: 0; }
 .group-flow-detail-title { font-size: .84rem; font-weight: 700; }
 .group-flow-detail-meta { margin-top: 3px !important; color: var(--muted); font-size: .76rem; }
