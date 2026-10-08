@@ -56,6 +56,67 @@ WHERE water = 'pond'
 SELECT * EXCLUDE (tags_json)
 FROM water_objects
 WHERE wikidata IS NOT NULL;`,
+  wiki: `-- Совпадает ли name с названием русской статьи из тега wikipedia?
+-- Префиксы не ru: пропускаются; подчёркивания и уточнения в круглых скобках не учитываются.
+
+WITH articles AS (
+  SELECT
+    osm_type,
+    osm_id,
+    water,
+    name,
+    wikipedia,
+    longitude,
+    latitude,
+    replace(name, ' ', '_') AS name_title,
+    regexp_replace(wikipedia, '^ru:', '') AS article_title,
+    regexp_replace(
+      replace(name, ' ', '_'),
+      '[_[:space:]]*\\([^)]*\\)', '', 'g'
+    ) AS name_without_parentheses,
+    regexp_replace(
+      regexp_replace(wikipedia, '^ru:', ''),
+      '[_[:space:]]*\\([^)]*\\)', '', 'g'
+    ) AS article_without_parentheses,
+    regexp_replace(
+      replace(name, ' ', '_'),
+      '(?i)^(озеро|старица|пруд|лагуна|губа|залив)_+', ''
+    ) AS name_without_waterbody_prefix,
+    regexp_replace(
+      regexp_replace(
+        replace(name, ' ', '_'),
+        '(?i)^(озеро|старица|пруд|лагуна|губа|залив)_+', ''
+      ),
+      '[_[:space:]]*\\([^)]*\\)', '', 'g'
+    ) AS name_without_prefix_parentheses
+  FROM water_objects
+  WHERE regexp_matches(wikipedia, '^ru:')
+),
+matches AS (
+  SELECT
+    osm_type,
+    osm_id,
+    water,
+    name,
+    wikipedia,
+    longitude,
+    latitude,
+    CASE
+      WHEN lower(name_title) = lower(article_title) THEN '✅ Сматчился'
+      WHEN lower(name_without_parentheses) = lower(article_without_parentheses) THEN '✅ Сматчился'
+      WHEN lower(name_without_waterbody_prefix) = lower(article_title) THEN '✅ Сматчился'
+      WHEN lower(name_without_prefix_parentheses) = lower(article_without_parentheses) THEN '✅ Сматчился'
+      WHEN lower(regexp_extract(name_without_prefix_parentheses, '^[^_[:space:]]+'))
+         = lower(regexp_extract(article_without_parentheses, '^[^_[:space:]]+'))
+        THEN '🟡 Частично сматчился по первому слову'
+      ELSE '❌ Не сматчился'
+    END AS status
+  FROM articles
+)
+SELECT *
+FROM matches
+WHERE status = '❌ Не сматчился'
+ORDER BY name;`,
   'water-values': `-- Дальше запросы просто для вдохновения
 
 -- Какие бывают значения тега water (помним, что в данных только водоёмы с названиями)
@@ -121,8 +182,8 @@ WITH classified AS (
     WHEN regexp_matches(name, '(?i)озера') THEN '01.4. Множественное число | «озёра» через «е»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+\\s+озеро') THEN '02. Два отдельных слова «озеро»'
     WHEN regexp_matches(name, '(?i)озеро\\s+.+озеро') THEN '03. Слово «озеро» дважды в названии как подстрока'
-    WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее)\\s\\S*озеро$') THEN '04.1. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее *озеро'
-    WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее).*озеро$') THEN '04.2. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее * озеро'
+    WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее|северное|западное|восточное|южное)\\s\\S*озеро$') THEN '04.1. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее/Северное/Западное/Восточное/Южное *озеро'
+    WHEN regexp_matches(name, '(?i)^(большое|малое|верхнее|среднее|нижнее|северное|западное|восточное|южное).*озеро$') THEN '04.2. Заканчивается отдельным словом «озеро» | Большое/Малое/Верхнее/Нижнее/Северное/Западное/Восточное/Южное * озеро'
     -- WHEN regexp_matches(name, '(?i)^(первое|второе|третье|четв[её]ртое|пятое|шестое|седьмое|восьмое|девятое|десятое|одиннадцатое|двенадцатое|тринадцатое|четырнадцатое|пятнадцатое|шестнадцатое|семнадцатое|восемнадцатое|девятнадцатое|двадцатое)\\s+') THEN '04.3. Заканчивается отдельным словом «озеро» | начинается на порядковое числительное'
     WHEN regexp_matches(name, '(?i)^.+\\s+озеро$') THEN '04.4. Заканчивается отдельным словом «озеро» | прочие'
     WHEN regexp_matches(name, '(?i)^\\S+$') AND regexp_matches(name, '(?i)ярви') THEN '05.1. name из одного слова | с финским «ярви»'
@@ -136,7 +197,7 @@ WITH classified AS (
     WHEN regexp_matches(name, '/') THEN '99.1. Другое | со слешами'
     WHEN regexp_matches(name, '[()\\[\\]{}]') THEN '99.2. Другое | со скобками'
     WHEN regexp_matches(name, '[0-9]') THEN '99.3. Другое | хотя бы одна цифра'
-    WHEN regexp_matches(name, '(?i)(малое|большое|верхнее|среднее|нижнее)') THEN '99.4. Другое | Малое/Большое/Верхнее/Среднее/Нижнее'
+    WHEN regexp_matches(name, '(?i)(малое|большое|верхнее|среднее|нижнее|северное|западное|восточное|южное)') THEN '99.4. Другое | Малое/Большое/Верхнее/Среднее/Нижнее/Северное/Западное/Восточное/Южное'
     ELSE '99.5. Другое | другое'
   END AS form
   FROM water_objects
