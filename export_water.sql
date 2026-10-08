@@ -27,6 +27,8 @@ COPY (
     tags['wikipedia'] AS wikipedia,
     tags['intermittent'] AS intermittent,
     tags['salt'] AS salt,
+    tags['description'] AS description,
+    tags['note'] AS note,
     ST_X(ST_PointOnSurface(geometry)) AS longitude,
     ST_Y(ST_PointOnSurface(geometry)) AS latitude,
     CASE WHEN kind = 'area' THEN CAST(ROUND(ST_Area_Spheroid(geometry)) AS BIGINT) END AS area_m2,
