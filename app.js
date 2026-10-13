@@ -3,8 +3,10 @@ import * as duckdb from './vendor/duckdb/duckdb-browser.mjs';
 import * as maplibregl from './vendor/maplibre/maplibre-gl.mjs';
 
 let datasetUrl = new URL('./data/water-objects.parquet', window.location.href).href;
+const gkgnDatasetUrl = new URL('./data/gkgn.parquet', window.location.href).href;
 let dumpDate = '2026-09-24';
 const TABLE = 'water_objects';
+const GKGN_TABLE = 'gkgn_objects';
 const ROW_HEIGHT = 38;
 const VISIBLE_ROWS = 120;
 const STORAGE_PREFIX = 'lakes-names:';
@@ -41,6 +43,11 @@ SELECT * FROM water_objects;
 
 const queries = {
   all: allDataQuery(),
+  gkgn: `-- Отфильтрованные географические названия водных полигональных объектов
+-- из Государственного Каталога Географических Наименований
+
+SELECT *
+FROM gkgn_objects;`,
   lake: `-- Для разминки несколько простых запросов чтобы вспомнить SQL
 -- Найдём все водоёмы с тегом water = lake
 
@@ -116,6 +123,132 @@ SELECT *
 FROM matches
 WHERE status = '❌ Не сматчился'
 ORDER BY name;`,
+  'gkgn-types': `-- Сколько разных типов объектов осталось в ГКГН
+
+SELECT
+  object_type,
+  COUNT(*) AS uses
+FROM gkgn_objects
+GROUP BY object_type
+ORDER BY uses DESC, object_type;`,
+  'gkgn-osm-matches': `-- Лучшие матчи ГКГН и OSM.
+-- Кандидаты должны совпадать по нормализованному имени и находиться
+-- в радиусе 1 км; среди таких кандидатов выбирается ближайший.
+
+WITH gkgn AS (
+  SELECT
+    registry_number,
+    name AS gkgn_name,
+    object_type,
+    region,
+    latitude AS gkgn_latitude,
+    longitude AS gkgn_longitude,
+    trim(regexp_replace(
+      lower(replace(name, 'ё', 'е')),
+      '[[:punct:][:space:]]+', ' ', 'g'
+    )) AS name_key
+  FROM gkgn_objects
+  WHERE name IS NOT NULL
+    AND latitude BETWEEN -90 AND 90
+    AND longitude BETWEEN -180 AND 180
+), osm AS (
+  SELECT
+    osm_type,
+    osm_id,
+    name AS osm_name,
+    water,
+    latitude AS osm_latitude,
+    longitude AS osm_longitude,
+    trim(regexp_replace(
+      lower(replace(name, 'ё', 'е')),
+      '[[:punct:][:space:]]+', ' ', 'g'
+    )) AS name_key
+  FROM water_objects
+  WHERE name IS NOT NULL
+    AND water = 'lake'
+    AND latitude BETWEEN -90 AND 90
+    AND longitude BETWEEN -180 AND 180
+), candidates AS (
+  SELECT
+    g.registry_number,
+    g.gkgn_name,
+    g.object_type,
+    g.region,
+    g.gkgn_latitude,
+    g.gkgn_longitude,
+    o.osm_type,
+    o.osm_id,
+    o.osm_name,
+    o.water,
+    o.osm_latitude,
+    o.osm_longitude,
+    6371000 * 2 * asin(sqrt(
+      power(sin(radians(o.osm_latitude - g.gkgn_latitude) / 2), 2)
+      + cos(radians(g.gkgn_latitude))
+        * cos(radians(o.osm_latitude))
+        * power(sin(radians(o.osm_longitude - g.gkgn_longitude) / 2), 2)
+    )) AS distance_m
+  FROM gkgn AS g
+  JOIN osm AS o
+    ON abs(o.osm_latitude - g.gkgn_latitude) <= 0.02
+   AND abs(o.osm_longitude - g.gkgn_longitude) <= 0.04
+   AND g.name_key = o.name_key
+), ranked AS (
+  SELECT
+    *,
+    row_number() OVER (
+      PARTITION BY registry_number, gkgn_name, gkgn_latitude, gkgn_longitude
+      ORDER BY distance_m, osm_id
+    ) AS match_rank
+  FROM candidates
+  WHERE distance_m <= 1000
+)
+SELECT * EXCLUDE (match_rank)
+FROM ranked
+WHERE match_rank = 1
+ORDER BY distance_m, gkgn_name;`,
+  'gkgn-osm-unmatched': `-- Записи ГКГН, для которых рядом не найден OSM-объект
+
+WITH gkgn AS (
+  SELECT
+    *,
+    trim(regexp_replace(
+      lower(replace(name, 'ё', 'е')),
+      '[[:punct:][:space:]]+', ' ', 'g'
+    )) AS name_key
+  FROM gkgn_objects
+  WHERE name IS NOT NULL
+    AND latitude BETWEEN -90 AND 90
+    AND longitude BETWEEN -180 AND 180
+), osm AS (
+  SELECT
+    *,
+    trim(regexp_replace(
+      lower(replace(name, 'ё', 'е')),
+      '[[:punct:][:space:]]+', ' ', 'g'
+    )) AS name_key
+  FROM water_objects
+  WHERE name IS NOT NULL
+    AND water = 'lake'
+    AND latitude BETWEEN -90 AND 90
+    AND longitude BETWEEN -180 AND 180
+)
+SELECT g.*
+FROM gkgn AS g
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM osm AS o
+  WHERE abs(o.latitude - g.latitude) <= 0.02
+    AND abs(o.longitude - g.longitude) <= 0.04
+    AND g.name_key = o.name_key
+    AND 6371000 * 2 * asin(sqrt(
+      power(sin(radians(o.latitude - g.latitude) / 2), 2)
+      + cos(radians(g.latitude))
+        * cos(radians(o.latitude))
+        * power(sin(radians(o.longitude - g.longitude) / 2), 2)
+    )) <= 1000
+)
+ORDER BY g.name;`,
   'water-values': `-- Дальше запросы просто для вдохновения
 
 -- Какие бывают значения тега water (помним, что в данных только водоёмы с названиями)
@@ -176,7 +309,7 @@ WITH classified AS (
     WHEN regexp_matches(name, '[.,]') THEN '00.1. Проблемные названия | содержит пунктуацию'
     WHEN regexp_matches(name, '(?i)(болот|пруд|водохранил|стариц|ерик)') THEN '00.2. Проблемные названия | болото, пруд, водохранилище, старица'
     WHEN regexp_matches(name, '[()\\[\\]{}]') THEN '00.3. Проблемные названия | содержит скобки'
-    WHEN regexp_matchesq(name, '(?i)^озёра') THEN '01.1. Множественное число | начинается на «озёра» через «ё»'
+    WHEN regexp_matches(name, '(?i)^озёра') THEN '01.1. Множественное число | начинается на «озёра» через «ё»'
     WHEN regexp_matches(name, '(?i)^озера') THEN '01.2. Множественное число | начинается на «озёра» через «е»'
     WHEN regexp_matches(name, '(?i)озёра') THEN '01.3. Множественное число | «озёра» через «ё»'
     WHEN regexp_matches(name, '(?i)[^а-я]озера') THEN '01.4. Множественное число | «озёра» через «е»'
@@ -358,6 +491,25 @@ function setActiveExample(queryKey) {
     const active = button.dataset.query === queryKey;
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', String(active));
+    if (active) button.closest('details')?.setAttribute('open', '');
+  });
+}
+
+function restoreExampleGroups() {
+  document.querySelectorAll('[data-example-group]').forEach((group) => {
+    const key = `${STORAGE_PREFIX}example-group:${group.dataset.exampleGroup}`;
+    try {
+      group.open = window.localStorage.getItem(key) === 'open';
+    } catch {
+      // Group state is optional when storage is unavailable.
+    }
+    group.addEventListener('toggle', () => {
+      try {
+        window.localStorage.setItem(key, group.open ? 'open' : 'closed');
+      } catch {
+        // Storage can be unavailable in private or restricted browser contexts.
+      }
+    });
   });
 }
 
@@ -553,6 +705,19 @@ async function loadDatasetMetadata() {
     queries.all = allDataQuery();
   } catch {
     // The checked-in baseline remains usable if the metadata request fails.
+  }
+}
+
+async function loadOptionalGkgnDataset(db, connection) {
+  try {
+    const response = await fetch(gkgnDatasetUrl, { method: 'HEAD', cache: 'no-store' });
+    if (!response.ok) return false;
+    await db.registerFileURL('gkgn.parquet', gkgnDatasetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
+    await connection.query(`CREATE VIEW ${GKGN_TABLE} AS SELECT * FROM 'gkgn.parquet'`);
+    return true;
+  } catch {
+    // ГКГН — необязательный локальный набор данных; OSM работает и без него.
+    return false;
   }
 }
 
@@ -818,8 +983,19 @@ function sortRows(left, right, direction) {
 }
 
 function coordinatesFor(row) {
-  const longitude = Number(row.longitude);
-  const latitude = Number(row.latitude);
+  const coordinateValue = (exactName, suffixes) => {
+    const candidates = [exactName, ...Object.keys(row).filter((key) => {
+      const normalizedKey = key.toLowerCase();
+      return suffixes.some((suffix) => normalizedKey.endsWith(suffix));
+    })];
+    for (const key of candidates) {
+      const value = Number(row[key]);
+      if (Number.isFinite(value)) return value;
+    }
+    return NaN;
+  };
+  const longitude = coordinateValue('longitude', ['longitude', 'долгота']);
+  const latitude = coordinateValue('latitude', ['latitude', 'широта']);
   if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) return null;
   return [longitude, latitude];
 }
@@ -827,13 +1003,28 @@ function coordinatesFor(row) {
 function mapPopupContent(row) {
   const content = document.createElement('div');
   content.className = 'map-popup';
-  if (row.osm_type && row.osm_id !== null && row.osm_id !== undefined) {
+  const hasOsmId = row.osm_type
+    && row.osm_id !== null
+    && row.osm_id !== undefined
+    && String(row.osm_id).trim() !== '';
+  if (hasOsmId) {
     const title = document.createElement('a');
     title.href = `https://www.openstreetmap.org/${encodeURIComponent(row.osm_type)}/${encodeURIComponent(row.osm_id)}`;
     title.target = '_blank';
     title.rel = 'noopener noreferrer';
     title.textContent = `${row.osm_type}/${row.osm_id}`;
     content.append(title);
+  } else {
+    const coordinates = coordinatesFor(row);
+    if (coordinates) {
+      const [longitude, latitude] = coordinates;
+      const location = document.createElement('a');
+      location.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(latitude)}&mlon=${encodeURIComponent(longitude)}#map=18/${latitude}/${longitude}`;
+      location.target = '_blank';
+      location.rel = 'noopener noreferrer';
+      location.textContent = 'Открыть координаты в OpenStreetMap';
+      content.append(location);
+    }
   }
 
   const tags = tagsFromJson(row.tags_json);
@@ -921,7 +1112,13 @@ async function runQuery(sqlOverride) {
     if (!sql) return;
     runButton.disabled = true;
     resultMeta.textContent = 'Выполняю…';
-    renderTable(await connection.query(sql));
+    const queryStartedAt = performance.now();
+    const arrowTable = await connection.query(sql);
+    const queryDurationMs = performance.now() - queryStartedAt;
+    renderTable(arrowTable);
+    if (queryDurationMs > 500) {
+      resultMeta.textContent += ` · ${(queryDurationMs / 1000).toFixed(2)} с`;
+    }
   } catch (reason) {
     resultMeta.textContent = '';
     resultToggle.disabled = true;
@@ -945,6 +1142,11 @@ async function initialise() {
     await db.registerFileURL('water-objects.parquet', datasetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
     connection = await db.connect();
     await connection.query(`CREATE VIEW ${TABLE} AS SELECT * FROM 'water-objects.parquet'`);
+    const gkgnAvailable = await loadOptionalGkgnDataset(db, connection);
+    const gkgnButton = document.querySelector('[data-query="gkgn"]');
+    if (gkgnButton) gkgnButton.hidden = !gkgnAvailable;
+    const gkgnGroup = gkgnButton?.closest('details');
+    if (gkgnGroup) gkgnGroup.hidden = !gkgnAvailable;
     runButton.disabled = false;
     if (!hasUserQuery) {
       setQueryText(queries.all, false);
@@ -990,4 +1192,5 @@ document.querySelectorAll('[data-query]').forEach((button) => {
 });
 
 restoreQueryText();
+restoreExampleGroups();
 initialise();

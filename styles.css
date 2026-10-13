@@ -47,6 +47,15 @@ textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--de
 .examples button { border: 1px solid #c6d9d6; border-radius: 99px; padding: 7px 10px; color: #315c61; background: transparent; font-size: .78rem; }
 .examples button:hover { border-color: var(--deep); color: var(--deep); background: #effaf8; }
 .examples button.is-active { border-color: #4c9997; color: #075e60; background: #dff1ee; box-shadow: inset 0 0 0 1px rgb(7 94 96 / 10%); }
+.examples-group { display: flex; flex: 0 1 auto; align-self: flex-start; flex-wrap: nowrap; align-items: center; gap: 8px; min-width: 0; }
+.examples-group:not([open]) { gap: 0; }
+.examples-group summary { display: block; cursor: pointer; border: 1px solid #c6d9d6; border-radius: 99px; padding: 7px 10px; color: #315c61; background: transparent; font-size: .78rem; list-style: none; }
+.examples-group summary::-webkit-details-marker { display: none; }
+.examples-group summary::before { content: '+'; display: inline-block; width: .8em; margin-right: 3px; color: var(--muted); }
+.examples-group[open] summary::before { content: '−'; }
+.examples-group summary:hover { border-color: var(--deep); color: var(--deep); background: #effaf8; }
+.examples-group-items { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.examples-group:not([open]) .examples-group-items { display: none; }
 #share-query { position: relative; display: inline-grid; width: 32px; padding: 7px; place-items: center; border-color: #c6d9d6; color: #3e6669; background: #f8fbfa; }
 #share-query:hover { background: #effaf8; }
 #share-query svg { width: 15px; height: 15px; fill: currentColor; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; }

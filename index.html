@@ -55,15 +55,42 @@ SELECT * FROM water_objects;
               <button id="query-ozerki" type="button" data-query="ozerki">Озерки</button>
               <button id="query-non-lake-named" type="button" data-query="nonLakeNamed">water ≠ lake</button>
               <button id="query-forms" type="button" data-query="forms">🔥Формы имени</button>
-              <button id="query-water-values" type="button" data-query="water-values">Значения water</button>
-              <button id="query-name-length" type="button" data-query="name-length">Длинные name</button>
-              <button id="query-name-whitespace" type="button" data-query="name-whitespace">Пробелы в name</button>
-              <button id="query-name-symbols" type="button" data-query="name-symbols">Символы в name</button>
-              <button id="query-tags" type="button" data-query="tags">Работа с сырыми тегами </button>
-              <button id="query-salty-ponds" type="button" data-query="salty-ponds">Солёные пруды</button>
-              <button id="query-wikidata" type="button" data-query="wikidata">С wikidata</button>
-              <button id="query-wiki" type="button" data-query="wiki">wiki</button>
+              <details class="examples-group" data-example-group="additional">
+                <summary>Дополнительно</summary>
+                <div class="examples-group-items">
+                  <button id="query-water-values" type="button" data-query="water-values">Значения water</button>
+                  <button id="query-name-length" type="button" data-query="name-length">Длинные name</button>
+                  <button id="query-name-whitespace" type="button" data-query="name-whitespace">Пробелы в name</button>
+                  <button id="query-name-symbols" type="button" data-query="name-symbols">Символы в name</button>
+                  <button id="query-tags" type="button" data-query="tags">Работа с сырыми тегами </button>
+                  <button id="query-salty-ponds" type="button" data-query="salty-ponds">Солёные пруды</button>
+                </div>
+              </details>
+              <details class="examples-group" data-example-group="wiki">
+                <summary>Вики</summary>
+                <div class="examples-group-items">
+                  <button id="query-wikidata" type="button" data-query="wikidata">С wikidata</button>
+                  <button id="query-wiki" type="button" data-query="wiki">wiki</button>
+                </div>
+              </details>
+              <details class="examples-group" data-example-group="gkgn">
+                <summary>ГКГН</summary>
+                <div class="examples-group-items">
+                  <button id="query-gkgn" type="button" data-query="gkgn">Все данные</button>
+                  <button id="query-gkgn-types" type="button" data-query="gkgn-types">Типы ГКГН</button>
+                  <button id="query-gkgn-osm-matches" type="button" data-query="gkgn-osm-matches">Матчи ГКГН ↔ OSM</button>
+                  <button id="query-gkgn-osm-unmatched" type="button" data-query="gkgn-osm-unmatched">ГКГН без матча</button>
+                </div>
+              </details>
             </div>
+            <script>
+              try {
+                document.querySelectorAll('[data-example-group]').forEach((group) => {
+                  const key = `lakes-names:example-group:${group.dataset.exampleGroup}`;
+                  if (window.localStorage.getItem(key) === 'open') group.open = true;
+                });
+              } catch {}
+            </script>
           </div>
           <aside class="map-panel" aria-label="Карта точек результата">
             <div id="map"></div>
