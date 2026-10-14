@@ -54,7 +54,7 @@ SELECT * FROM water_objects;
               <button id="query-plural" type="button" data-query="plural">ОзёрА</button>
               <button id="query-ozerki" type="button" data-query="ozerki">Озерки</button>
               <button id="query-non-lake-named" type="button" data-query="nonLakeNamed">water ≠ lake</button>
-              <button id="query-forms" type="button" data-query="forms">🔥Формы имени</button>
+              <button id="query-forms" type="button" data-query="forms">🔥Формы name</button>
               <details class="examples-group" data-example-group="additional">
                 <summary>Дополнительно</summary>
                 <div class="examples-group-items">
@@ -73,13 +73,14 @@ SELECT * FROM water_objects;
                   <button id="query-wiki" type="button" data-query="wiki">wiki</button>
                 </div>
               </details>
-              <details class="examples-group" data-example-group="gkgn">
+              <details class="examples-group" data-example-group="gkgn" open>
                 <summary>ГКГН</summary>
                 <div class="examples-group-items">
                   <button id="query-gkgn" type="button" data-query="gkgn">Все данные</button>
                   <button id="query-gkgn-types" type="button" data-query="gkgn-types">Типы ГКГН</button>
                   <button id="query-gkgn-osm-matches" type="button" data-query="gkgn-osm-matches">Матчи ГКГН ↔ OSM</button>
                   <button id="query-gkgn-osm-unmatched" type="button" data-query="gkgn-osm-unmatched">ГКГН без матча</button>
+                  <button id="query-osm-gkgn-unmatched" type="button" data-query="osm-gkgn-unmatched">OSM без матча</button>
                 </div>
               </details>
             </div>
@@ -108,6 +109,10 @@ SELECT * FROM water_objects;
             <span class="result-toggle-mark" aria-hidden="true">▸</span>
             <span id="result-meta" class="result-meta"></span>
           </button>
+          <div class="export-actions" aria-label="Экспорт результата">
+            <button id="export-csv" type="button" disabled>CSV</button>
+            <button id="export-geojson" type="button" disabled>GeoJSON</button>
+          </div>
         </div>
         <p id="error" class="error" hidden></p>
         <div id="table-wrap" class="table-wrap">

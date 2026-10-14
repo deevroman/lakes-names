@@ -21,6 +21,7 @@ FROM (VALUES
   ('болото'), ('болота'), ('камень'), ('камни'), ('высота'), ('высоты'), ('исторический район'),
   ('гора'), ('горы'), ('уступ'), ('буерак'), ('купол'), ('плотина'), ('пороги'), ('останец'), ('останцы'),
   ('водопад'), ('водопады'), ('порог'), ('перекат'), ('губа'), ('падь'), ('голец'), ('шхеры'),
+  ('залив'), ('жёлоб'), ('стамик'),
 
   -- Settlements and settlement-related objects.
   ('деревня'), ('посёлок'), ('поселок'), ('хутор'), ('город'),
@@ -84,7 +85,7 @@ FROM (VALUES
 
 COPY (
   SELECT
-    NULLIF(trim(trim(csv_registry_number, '"')), '') AS registry_number,
+    NULLIF(trim(trim(csv_gkgn_id, '"')), '') AS gkgn_id,
     NULLIF(trim(trim(csv_name, '"')), '') AS name,
     lower(trim(trim(csv_type, '"'))) AS object_type,
     NULLIF(trim(trim(csv_region, '"')), '') AS region,
@@ -98,7 +99,7 @@ COPY (
     quote = '',
     parallel = false,
     columns = {
-      'csv_registry_number': 'VARCHAR',
+      'csv_gkgn_id': 'VARCHAR',
       'csv_name': 'VARCHAR',
       'csv_type': 'VARCHAR',
       'csv_region': 'VARCHAR',

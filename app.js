@@ -133,18 +133,22 @@ GROUP BY object_type
 ORDER BY uses DESC, object_type;`,
   'gkgn-osm-matches': `-- Лучшие матчи ГКГН и OSM.
 -- Кандидаты должны совпадать по нормализованному имени и находиться
--- в радиусе 1 км; среди таких кандидатов выбирается ближайший.
+-- в радиусе 1.5 км; среди таких кандидатов выбирается ближайший.
 
 WITH gkgn AS (
   SELECT
-    registry_number,
+    gkgn_id,
     name AS gkgn_name,
     object_type,
     region,
     latitude AS gkgn_latitude,
     longitude AS gkgn_longitude,
     trim(regexp_replace(
-      lower(replace(name, 'ё', 'е')),
+      regexp_replace(
+        lower(replace(name, 'ё', 'е')),
+        '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
+        ' ', 'g'
+      ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM gkgn_objects
@@ -160,17 +164,25 @@ WITH gkgn AS (
     latitude AS osm_latitude,
     longitude AS osm_longitude,
     trim(regexp_replace(
-      lower(replace(name, 'ё', 'е')),
+      regexp_replace(
+        lower(replace(name, 'ё', 'е')),
+        '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
+        ' ', 'g'
+      ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM water_objects
   WHERE name IS NOT NULL
-    AND water = 'lake'
+    AND regexp_matches(name, '[А-Яа-яЁё]')
+    AND NOT regexp_matches(name, '^возера')
+    AND NOT regexp_matches(name, '^возеро')
+    AND NOT regexp_matches(name, 'возера$')
+    AND NOT regexp_matches(name, 'возеро$')
     AND latitude BETWEEN -90 AND 90
     AND longitude BETWEEN -180 AND 180
 ), candidates AS (
   SELECT
-    g.registry_number,
+    g.gkgn_id,
     g.gkgn_name,
     g.object_type,
     g.region,
@@ -182,12 +194,12 @@ WITH gkgn AS (
     o.water,
     o.osm_latitude,
     o.osm_longitude,
-    6371000 * 2 * asin(sqrt(
+    round(6371000 * 2 * asin(sqrt(
       power(sin(radians(o.osm_latitude - g.gkgn_latitude) / 2), 2)
       + cos(radians(g.gkgn_latitude))
         * cos(radians(o.osm_latitude))
         * power(sin(radians(o.osm_longitude - g.gkgn_longitude) / 2), 2)
-    )) AS distance_m
+    ))) AS distance_m
   FROM gkgn AS g
   JOIN osm AS o
     ON abs(o.osm_latitude - g.gkgn_latitude) <= 0.02
@@ -197,11 +209,11 @@ WITH gkgn AS (
   SELECT
     *,
     row_number() OVER (
-      PARTITION BY registry_number, gkgn_name, gkgn_latitude, gkgn_longitude
+      PARTITION BY gkgn_id, gkgn_name, gkgn_latitude, gkgn_longitude
       ORDER BY distance_m, osm_id
     ) AS match_rank
   FROM candidates
-  WHERE distance_m <= 1000
+  WHERE distance_m <= 5000
 )
 SELECT * EXCLUDE (match_rank)
 FROM ranked
@@ -213,7 +225,11 @@ WITH gkgn AS (
   SELECT
     *,
     trim(regexp_replace(
-      lower(replace(name, 'ё', 'е')),
+      regexp_replace(
+        lower(replace(name, 'ё', 'е')),
+        '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
+        ' ', 'g'
+      ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM gkgn_objects
@@ -224,16 +240,24 @@ WITH gkgn AS (
   SELECT
     *,
     trim(regexp_replace(
-      lower(replace(name, 'ё', 'е')),
+      regexp_replace(
+        lower(replace(name, 'ё', 'е')),
+        '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
+        ' ', 'g'
+      ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM water_objects
   WHERE name IS NOT NULL
-    AND water = 'lake'
+    AND regexp_matches(name, '[А-Яа-яЁё]')
+    AND NOT regexp_matches(name, '^возера')
+    AND NOT regexp_matches(name, '^возеро')
+    AND NOT regexp_matches(name, 'возера$')
+    AND NOT regexp_matches(name, 'возеро$')
     AND latitude BETWEEN -90 AND 90
     AND longitude BETWEEN -180 AND 180
 )
-SELECT g.*
+SELECT g.* EXCLUDE (name_key)
 FROM gkgn AS g
 WHERE NOT EXISTS (
   SELECT 1
@@ -246,9 +270,64 @@ WHERE NOT EXISTS (
       + cos(radians(g.latitude))
         * cos(radians(o.latitude))
         * power(sin(radians(o.longitude - g.longitude) / 2), 2)
-    )) <= 1000
+    )) <= 5000
 )
 ORDER BY g.name;`,
+  'osm-gkgn-unmatched': `-- OSM-озёра, для которых не найдено соответствующее имя в ГКГН
+
+WITH gkgn AS (
+  SELECT
+    latitude,
+    longitude,
+    trim(regexp_replace(
+      regexp_replace(
+        lower(replace(name, 'ё', 'е')),
+        '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
+        ' ', 'g'
+      ),
+      '[[:punct:][:space:]]+', ' ', 'g'
+    )) AS name_key
+  FROM gkgn_objects
+  WHERE name IS NOT NULL
+    AND latitude BETWEEN -90 AND 90
+    AND longitude BETWEEN -180 AND 180
+), osm AS (
+  SELECT
+    *,
+    trim(regexp_replace(
+      regexp_replace(
+        lower(replace(name, 'ё', 'е')),
+        '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
+        ' ', 'g'
+      ),
+      '[[:punct:][:space:]]+', ' ', 'g'
+    )) AS name_key
+  FROM water_objects
+  WHERE name IS NOT NULL
+    AND regexp_matches(name, '[А-Яа-яЁё]')
+    AND NOT regexp_matches(name, '^возера')
+    AND NOT regexp_matches(name, '^возеро')
+    AND NOT regexp_matches(name, 'возера$')
+    AND NOT regexp_matches(name, 'возеро$')
+    AND latitude BETWEEN -90 AND 90
+    AND longitude BETWEEN -180 AND 180
+)
+SELECT o.* EXCLUDE (name_key)
+FROM osm AS o
+WHERE NOT EXISTS (
+  SELECT 1
+  FROM gkgn AS g
+  WHERE abs(o.latitude - g.latitude) <= 0.02
+    AND abs(o.longitude - g.longitude) <= 0.04
+    AND g.name_key = o.name_key
+    AND 6371000 * 2 * asin(sqrt(
+      power(sin(radians(o.latitude - g.latitude) / 2), 2)
+      + cos(radians(g.latitude))
+        * cos(radians(o.latitude))
+        * power(sin(radians(o.longitude - g.longitude) / 2), 2)
+    )) <= 5000
+)
+ORDER BY o.name;`,
   'water-values': `-- Дальше запросы просто для вдохновения
 
 -- Какие бывают значения тега water (помним, что в данных только водоёмы с названиями)
@@ -428,6 +507,8 @@ const runButton = $('#run-query');
 const queryBox = $('#query');
 const resultMeta = $('#result-meta');
 const resultToggle = $('#result-toggle');
+const exportCsvButton = $('#export-csv');
+const exportGeoJsonButton = $('#export-geojson');
 const tableWrap = $('#table-wrap');
 const groupFlow = $('#group-flow');
 const error = $('#error');
@@ -470,6 +551,8 @@ let connection;
 let resultView;
 let mapSelectionTimer;
 let mapRows = [];
+let exportRows = [];
+let exportColumns = [];
 let hasUserQuery = false;
 let isSettingQueryText = false;
 
@@ -499,7 +582,9 @@ function restoreExampleGroups() {
   document.querySelectorAll('[data-example-group]').forEach((group) => {
     const key = `${STORAGE_PREFIX}example-group:${group.dataset.exampleGroup}`;
     try {
-      group.open = window.localStorage.getItem(key) === 'open';
+      const savedState = window.localStorage.getItem(key);
+      if (savedState === 'open') group.open = true;
+      if (savedState === 'closed') group.open = false;
     } catch {
       // Group state is optional when storage is unavailable.
     }
@@ -740,8 +825,12 @@ function renderTable(arrowTable) {
   const originalRows = arrowTable.toArray();
   let rows = originalRows;
   const columns = arrowTable.schema.fields.map((field) => field.name);
+  exportRows = originalRows;
+  exportColumns = columns;
   resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
   resultToggle.disabled = !rows.length;
+  exportCsvButton.disabled = !rows.length;
+  exportGeoJsonButton.disabled = !rows.length || !rows.some((row) => coordinatePointsFor(row).length);
   setTableCollapsed(false);
   updateMap(rows);
   renderGroupFlow(rows, columns);
@@ -808,6 +897,56 @@ function renderTable(arrowTable) {
   resultView = { scroller, renderSlice };
   renderHeader();
   renderSlice();
+}
+
+function exportValue(value) {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'bigint') return value.toString();
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+function csvCell(value) {
+  return `"${exportValue(value).replaceAll('"', '""')}"`;
+}
+
+function downloadText(content, filename, mimeType) {
+  const blob = new Blob([content], { type: `${mimeType};charset=utf-8` });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCsv() {
+  const lines = [
+    exportColumns.map(csvCell).join(','),
+    ...exportRows.map((row) => exportColumns.map((column) => csvCell(row[column])).join(',')),
+  ];
+  downloadText(`\uFEFF${lines.join('\r\n')}`, 'query-result.csv', 'text/csv');
+}
+
+function jsonValue(value) {
+  if (typeof value === 'bigint') return value.toString();
+  if (value && typeof value.toJSON === 'function') return value.toJSON();
+  if (value && typeof value.toArray === 'function') return value.toArray().map(jsonValue);
+  if (Array.isArray(value)) return value.map(jsonValue);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, jsonValue(item)]));
+  return value;
+}
+
+function exportGeoJson() {
+  const features = exportRows.flatMap((row) => coordinatePointsFor(row).map(({ coordinates, kind }) => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates },
+    properties: {
+      ...Object.fromEntries(exportColumns.map((column) => [column, jsonValue(row[column])])),
+      point_kind: kind,
+    },
+  })));
+  downloadText(`${JSON.stringify({ type: 'FeatureCollection', features }, null, 2)}\n`, 'query-result.geojson', 'application/geo+json');
 }
 
 function clearGroupFlow() {
@@ -1139,6 +1278,7 @@ async function runQuery(sqlOverride) {
     if (typeof source !== 'string') throw new TypeError('Не удалось прочитать SQL-запрос.');
     const sql = source.trim().replace(/;+\s*$/, '');
     if (!sql) return;
+    const collapseFormsTable = source === queries.forms;
     runButton.disabled = true;
     resultMeta.textContent = 'Выполняю…';
     const queryStartedAt = performance.now();
@@ -1148,9 +1288,12 @@ async function runQuery(sqlOverride) {
     if (queryDurationMs > 500) {
       resultMeta.textContent += ` · ${(queryDurationMs / 1000).toFixed(2)} с`;
     }
+    if (collapseFormsTable) setTableCollapsed(true);
   } catch (reason) {
     resultMeta.textContent = '';
     resultToggle.disabled = true;
+    exportCsvButton.disabled = true;
+    exportGeoJsonButton.disabled = true;
     tableWrap.innerHTML = '<p class="placeholder">Проверьте SQL и попробуйте снова.</p>';
     clearGroupFlow();
     sqlError(reason);
@@ -1189,6 +1332,8 @@ async function initialise() {
 }
 
 runButton.addEventListener('click', () => runQuery());
+exportCsvButton.addEventListener('click', exportCsv);
+exportGeoJsonButton.addEventListener('click', exportGeoJson);
 resultToggle.addEventListener('click', () => setTableCollapsed(resultToggle.getAttribute('aria-expanded') === 'true'));
 shareButton.addEventListener('click', shareQuery);
 imageryToggle.addEventListener('change', () => setBaseMap(imageryToggle.checked));
