@@ -569,10 +569,11 @@ function setBaseMap(showImagery) {
 
 function updateMap(rows, fitToPoints = true) {
   mapRows = rows;
-  const points = rows.flatMap((row, rowIndex) => {
-    const coordinates = coordinatesFor(row);
-    return coordinates ? [{ type: 'Feature', geometry: { type: 'Point', coordinates }, properties: { rowIndex } }] : [];
-  });
+  const points = rows.flatMap((row, rowIndex) => coordinatePointsFor(row).map(({ coordinates, kind }) => ({
+    type: 'Feature',
+    geometry: { type: 'Point', coordinates },
+    properties: { rowIndex, pointKind: kind },
+  })));
   const data = { type: 'FeatureCollection', features: points };
 
   const setPoints = () => {
@@ -587,10 +588,10 @@ function updateMap(rows, fitToPoints = true) {
         source: 'query-points',
         paint: {
           'circle-radius': 3,
-          'circle-color': '#111111',
+          'circle-color': ['match', ['get', 'pointKind'], 'osm', '#7ebc6f', '#111111'],
           'circle-opacity': 1,
           'circle-stroke-width': 0.5,
-          'circle-stroke-color': '#ffffff',
+          'circle-stroke-color': ['match', ['get', 'pointKind'], 'osm', '#087979', '#ffffff'],
         },
       });
       map.on('click', 'query-points', (event) => {
@@ -983,21 +984,49 @@ function sortRows(left, right, direction) {
 }
 
 function coordinatesFor(row) {
-  const coordinateValue = (exactName, suffixes) => {
-    const candidates = [exactName, ...Object.keys(row).filter((key) => {
-      const normalizedKey = key.toLowerCase();
-      return suffixes.some((suffix) => normalizedKey.endsWith(suffix));
-    })];
-    for (const key of candidates) {
-      const value = Number(row[key]);
-      if (Number.isFinite(value)) return value;
-    }
-    return NaN;
-  };
-  const longitude = coordinateValue('longitude', ['longitude', 'долгота']);
-  const latitude = coordinateValue('latitude', ['latitude', 'широта']);
-  if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) return null;
-  return [longitude, latitude];
+  return coordinatePointsFor(row)[0]?.coordinates || null;
+}
+
+function validCoordinates(longitude, latitude) {
+  const point = [Number(longitude), Number(latitude)];
+  if (!Number.isFinite(point[0]) || !Number.isFinite(point[1]) || Math.abs(point[0]) > 180 || Math.abs(point[1]) > 90) return null;
+  return point;
+}
+
+function coordinatePointsFor(row) {
+  const direct = validCoordinates(row.longitude, row.latitude);
+  if (direct) return [{ coordinates: direct, kind: 'primary' }];
+
+  const fields = Object.keys(row);
+  const normalizedFields = new Map(fields.map((field) => [field.toLowerCase(), field]));
+  const points = [];
+  const coordinateSuffixes = [
+    ['latitude', 'longitude'],
+    ['широта', 'долгота'],
+  ];
+  coordinateSuffixes.forEach(([latitudeSuffix, longitudeSuffix]) => {
+    fields.forEach((latitudeField) => {
+      const normalizedLatitudeField = latitudeField.toLowerCase();
+      if (!normalizedLatitudeField.endsWith(latitudeSuffix)) return;
+      const prefix = normalizedLatitudeField.slice(0, -latitudeSuffix.length);
+      const longitudeField = normalizedFields.get(`${prefix}${longitudeSuffix}`);
+      if (!longitudeField) return;
+      const coordinates = validCoordinates(row[longitudeField], row[latitudeField]);
+      if (!coordinates) return;
+      const kind = prefix.includes('osm') ? 'osm' : 'primary';
+      if (!points.some((point) => point.kind === kind && point.coordinates[0] === coordinates[0] && point.coordinates[1] === coordinates[1])) {
+        points.push({ coordinates, kind });
+      }
+    });
+  });
+  if (points.length) return points;
+
+  const findCoordinate = (suffixes) => fields
+    .filter((field) => suffixes.some((suffix) => field.toLowerCase().endsWith(suffix)))
+    .map((field) => Number(row[field]))
+    .find((value) => Number.isFinite(value));
+  const fallback = validCoordinates(findCoordinate(['longitude', 'долгота']), findCoordinate(['latitude', 'широта']));
+  return fallback ? [{ coordinates: fallback, kind: 'primary' }] : [];
 }
 
 function mapPopupContent(row) {
