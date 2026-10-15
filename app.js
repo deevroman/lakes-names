@@ -552,8 +552,11 @@ let connection;
 let resultView;
 let mapSelectionTimer;
 let mapRows = [];
+let mapUpdateVersion = 0;
 let exportRows = [];
 let exportColumns = [];
+let activeFilters = {};
+let pendingSharedFilters;
 let hasUserQuery = false;
 let isSettingQueryText = false;
 
@@ -654,6 +657,7 @@ function setBaseMap(showImagery) {
 }
 
 function updateMap(rows, fitToPoints = true) {
+  const updateVersion = ++mapUpdateVersion;
   mapRows = rows;
   const points = rows.flatMap((row, rowIndex) => coordinatePointsFor(row).map(({ coordinates, kind }) => ({
     type: 'Feature',
@@ -663,6 +667,7 @@ function updateMap(rows, fitToPoints = true) {
   const data = { type: 'FeatureCollection', features: points };
 
   const setPoints = () => {
+    if (updateVersion !== mapUpdateVersion) return;
     const source = map.getSource('query-points');
     if (source) {
       source.setData(data);
@@ -711,7 +716,9 @@ function updateMap(rows, fitToPoints = true) {
     }
   };
 
-  if (map.loaded()) setPoints();
+  // `map.loaded()` может быть false во время движения/перерисовки карты,
+  // хотя GeoJSON-источник уже доступен и его можно обновить.
+  if (map.getSource('query-points') || map.isStyleLoaded()) setPoints();
   else map.once('load', setPoints);
 }
 
@@ -743,8 +750,36 @@ function setQueryText(value, save = true) {
   resizeQueryBox();
 }
 
+function sharedUrlParameters() {
+  const url = new URL(window.location.href);
+  const parameters = new URLSearchParams(url.searchParams);
+  for (const [key, value] of new URLSearchParams(url.hash.slice(1))) parameters.set(key, value);
+  return parameters;
+}
+
 function restoreQueryText() {
-  const parameters = new URL(window.location.href).searchParams;
+  const url = new URL(window.location.href);
+  const hashParameters = new URLSearchParams(url.hash.slice(1));
+  const hasSharedParameters = ['q', 'filters'].some((key) => (
+    url.searchParams.has(key) || hashParameters.has(key)
+  ));
+  const parameters = sharedUrlParameters();
+  const serializedFilters = parameters.get('filters');
+  if (serializedFilters) {
+    try {
+      const parsedFilters = JSON.parse(serializedFilters);
+      if (parsedFilters && typeof parsedFilters === 'object' && !Array.isArray(parsedFilters)) {
+        pendingSharedFilters = Object.fromEntries(Object.entries(parsedFilters).filter(([, filter]) => (
+          filter && typeof filter === 'object'
+          && ['', '=', '!=', '<', '>'].includes(filter.operator)
+          && typeof filter.value === 'string'
+          && filter.value !== ''
+        )));
+      }
+    } catch {
+      pendingSharedFilters = undefined;
+    }
+  }
   let value = parameters.has('q') ? parameters.get('q') : null;
   if (value === null) {
     try {
@@ -754,11 +789,25 @@ function restoreQueryText() {
     }
   }
   if (value !== null) setQueryText(value);
+  if (hasSharedParameters) {
+    url.searchParams.delete('q');
+    url.searchParams.delete('filters');
+    hashParameters.delete('q');
+    hashParameters.delete('filters');
+    url.hash = hashParameters.toString();
+    window.history.replaceState(null, '', url);
+  }
 }
 
 async function shareQuery() {
   const url = new URL(window.location.href);
-  url.searchParams.set('q', queryText());
+  const parameters = new URLSearchParams();
+  parameters.set('q', queryText());
+  const filters = Object.fromEntries(Object.entries(activeFilters).filter(([, filter]) => filter.value !== ''));
+  if (Object.keys(filters).length) parameters.set('filters', JSON.stringify(filters));
+  url.searchParams.delete('q');
+  url.searchParams.delete('filters');
+  url.hash = parameters.toString();
   window.history.replaceState(null, '', url);
   const label = shareButton.getAttribute('aria-label');
   let status;
@@ -826,14 +875,18 @@ function renderTable(arrowTable) {
   const originalRows = arrowTable.toArray();
   let rows = originalRows;
   const columns = arrowTable.schema.fields.map((field) => field.name);
-  let filtersVisible = false;
-  const filters = new Map();
+  const filters = new Map(
+    Object.entries(pendingSharedFilters || {}).filter(([column]) => columns.includes(column)),
+  );
+  pendingSharedFilters = undefined;
+  let filtersVisible = filters.size > 0;
+  activeFilters = Object.fromEntries(filters);
   exportRows = originalRows;
   exportColumns = columns;
   resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
   resultToggle.disabled = !rows.length;
   filterButton.disabled = !rows.length;
-  filterButton.setAttribute('aria-pressed', 'false');
+  filterButton.setAttribute('aria-pressed', String(filtersVisible));
   exportCsvButton.disabled = !rows.length;
   exportGeoJsonButton.disabled = !rows.length || !rows.some((row) => coordinatePointsFor(row).length);
   setTableCollapsed(false);
@@ -887,6 +940,7 @@ function renderTable(arrowTable) {
   const applyFilters = () => {
     const filteredRows = originalRows.filter((row) => [...filters.entries()].every(([column, filter]) => valueMatchesFilter(row, column, filter.operator, filter.value)));
     rows = sortDirection ? [...filteredRows].sort((left, right) => sortRows(left[sortColumn], right[sortColumn], sortDirection)) : filteredRows;
+    activeFilters = Object.fromEntries(filters);
     exportRows = rows;
     resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
     resultToggle.disabled = !rows.length;
@@ -958,7 +1012,8 @@ function renderTable(arrowTable) {
     renderHeader();
   };
   renderHeader();
-  renderSlice();
+  if (filters.size) applyFilters();
+  else renderSlice();
 }
 
 function exportValue(value) {

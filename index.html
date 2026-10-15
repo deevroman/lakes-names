@@ -46,13 +46,22 @@ SELECT * FROM water_objects;
             <script>
               try {
                 const url = new URL(window.location.href);
-                const hasSharedQuery = url.searchParams.has('q');
-                const query = hasSharedQuery ? url.searchParams.get('q') : window.localStorage.getItem('lakes-names:query');
+                const hashParameters = new URLSearchParams(url.hash.slice(1));
+                const hasHashQuery = hashParameters.has('q');
+                const hasSearchQuery = url.searchParams.has('q');
+                const hasSharedQuery = hasHashQuery || hasSearchQuery;
+                const query = hasHashQuery
+                  ? hashParameters.get('q')
+                  : hasSearchQuery
+                    ? url.searchParams.get('q')
+                    : window.localStorage.getItem('lakes-names:query');
                 if (query !== null) document.getElementById('query').value = query;
                 if (hasSharedQuery) {
                   try { window.localStorage.setItem('lakes-names:query', query); } catch {}
-                  url.searchParams.delete('q');
-                  window.history.replaceState(null, '', url);
+                  if (hasSearchQuery) {
+                    url.searchParams.delete('q');
+                    window.history.replaceState(null, '', url);
+                  }
                 }
               } catch {}
             </script>
