@@ -937,7 +937,7 @@ function renderTable(arrowTable) {
     return true;
   };
 
-  const applyFilters = () => {
+  const applyFilters = (fitToPoints = false) => {
     const filteredRows = originalRows.filter((row) => [...filters.entries()].every(([column, filter]) => valueMatchesFilter(row, column, filter.operator, filter.value)));
     rows = sortDirection ? [...filteredRows].sort((left, right) => sortRows(left[sortColumn], right[sortColumn], sortDirection)) : filteredRows;
     activeFilters = Object.fromEntries(filters);
@@ -948,7 +948,7 @@ function renderTable(arrowTable) {
     exportGeoJsonButton.disabled = !rows.length || !rows.some((row) => coordinatePointsFor(row).length);
     scroller.scrollTop = 0;
     renderSlice();
-    updateMap(rows, false);
+    updateMap(rows, fitToPoints);
     renderGroupFlow(rows, columns);
   };
 
@@ -1012,7 +1012,7 @@ function renderTable(arrowTable) {
     renderHeader();
   };
   renderHeader();
-  if (filters.size) applyFilters();
+  if (filters.size) applyFilters(true);
   else renderSlice();
 }
 
