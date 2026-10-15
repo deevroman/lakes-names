@@ -71,6 +71,11 @@ textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--de
 .export-actions button { border: 1px solid #c6d9d6; border-radius: 5px; padding: 3px 6px; color: #315c61; background: transparent; font-size: .7rem; }
 .export-actions button:hover:not(:disabled) { border-color: var(--deep); color: var(--deep); background: #effaf8; }
 .export-actions button:disabled { cursor: default; opacity: .45; }
+.filter-row th { padding: 4px 5px; background: #f5faf8; }
+.filter-control { display: flex; gap: 3px; min-width: 0; }
+.filter-control select, .filter-control input { min-width: 0; border: 1px solid #c6d9d6; border-radius: 4px; padding: 3px 4px; color: #315c61; background: #fffefa; font: inherit; font-size: .72rem; }
+.filter-control select { width: 3.2em; flex: 0 0 auto; }
+.filter-control input { width: 100%; }
 .result-toggle-mark { display: inline-block; font-size: .9rem; line-height: 1; transition: transform 120ms ease; }
 #result-toggle[aria-expanded="true"] .result-toggle-mark { transform: rotate(90deg); }
 .table-wrap { min-height: 138px; border-top: 1px solid var(--line); }

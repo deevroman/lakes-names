@@ -507,6 +507,7 @@ const runButton = $('#run-query');
 const queryBox = $('#query');
 const resultMeta = $('#result-meta');
 const resultToggle = $('#result-toggle');
+const filterButton = $('#toggle-filters');
 const exportCsvButton = $('#export-csv');
 const exportGeoJsonButton = $('#export-geojson');
 const tableWrap = $('#table-wrap');
@@ -825,10 +826,14 @@ function renderTable(arrowTable) {
   const originalRows = arrowTable.toArray();
   let rows = originalRows;
   const columns = arrowTable.schema.fields.map((field) => field.name);
+  let filtersVisible = false;
+  const filters = new Map();
   exportRows = originalRows;
   exportColumns = columns;
   resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
   resultToggle.disabled = !rows.length;
+  filterButton.disabled = !rows.length;
+  filterButton.setAttribute('aria-pressed', 'false');
   exportCsvButton.disabled = !rows.length;
   exportGeoJsonButton.disabled = !rows.length || !rows.some((row) => coordinatePointsFor(row).length);
   setTableCollapsed(false);
@@ -850,12 +855,47 @@ function renderTable(arrowTable) {
   let sortDirection;
 
   const renderHeader = () => {
-    head.innerHTML = `<tr>${columns.map((column) => {
+    const filterRow = filtersVisible ? `<tr class="filter-row">${columns.map((column) => {
+      const filter = filters.get(column) || { operator: '', value: '' };
+      return `<th scope="col"><div class="filter-control"><select data-filter-operator="${escapeAttr(column)}" aria-label="Оператор фильтра для ${escapeAttr(column)}"><option value=""${filter.operator === '' ? ' selected' : ''}></option><option value="="${filter.operator === '=' ? ' selected' : ''}>=</option><option value="!="${filter.operator === '!=' ? ' selected' : ''}>≠</option><option value="<"${filter.operator === '<' ? ' selected' : ''}>&lt;</option><option value=">"${filter.operator === '>' ? ' selected' : ''}>&gt;</option></select><input type="text" data-filter-value="${escapeAttr(column)}" value="${escapeAttr(filter.value)}" aria-label="Значение фильтра для ${escapeAttr(column)}" /></div></th>`;
+    }).join('')}</tr>` : '';
+    head.innerHTML = `${filterRow}<tr>${columns.map((column) => {
       const isCurrent = column === sortColumn;
       const ariaSort = isCurrent ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none';
       const indicator = isCurrent ? (sortDirection === 'asc' ? '↓' : '↑') : '';
       return `<th scope="col" aria-sort="${ariaSort}"${columnClass(column) ? ` class="${columnClass(column)}"` : ''}><button class="column-sort" type="button" data-column="${escapeAttr(column)}">${escapeHtml(column)}<span aria-hidden="true">${indicator}</span></button></th>`;
     }).join('')}</tr>`;
+  };
+
+  const valueMatchesFilter = (row, column, operator, filterValue) => {
+    if (filterValue === '') return true;
+    const rawValue = row[column];
+    if (rawValue === null || rawValue === undefined) return operator === '!=';
+    if (!operator) return String(rawValue).toLocaleLowerCase('ru').includes(filterValue.toLocaleLowerCase('ru'));
+    const rawNumber = Number(rawValue);
+    const filterNumber = Number(filterValue);
+    const numeric = Number.isFinite(rawNumber) && Number.isFinite(filterNumber);
+    const left = numeric ? rawNumber : String(rawValue).toLocaleLowerCase('ru');
+    const right = numeric ? filterNumber : filterValue.toLocaleLowerCase('ru');
+    if (operator === '=') return left === right;
+    if (operator === '!=') return left !== right;
+    if (operator === '<') return left < right;
+    if (operator === '>') return left > right;
+    return true;
+  };
+
+  const applyFilters = () => {
+    const filteredRows = originalRows.filter((row) => [...filters.entries()].every(([column, filter]) => valueMatchesFilter(row, column, filter.operator, filter.value)));
+    rows = sortDirection ? [...filteredRows].sort((left, right) => sortRows(left[sortColumn], right[sortColumn], sortDirection)) : filteredRows;
+    exportRows = rows;
+    resultMeta.textContent = `${rows.length.toLocaleString('ru-RU')} строк`;
+    resultToggle.disabled = !rows.length;
+    exportCsvButton.disabled = !rows.length;
+    exportGeoJsonButton.disabled = !rows.length || !rows.some((row) => coordinatePointsFor(row).length);
+    scroller.scrollTop = 0;
+    renderSlice();
+    updateMap(rows, false);
+    renderGroupFlow(rows, columns);
   };
 
   const renderSlice = () => {
@@ -877,11 +917,28 @@ function renderTable(arrowTable) {
       sortColumn = column;
       sortDirection = 'asc';
     }
-    rows = sortDirection ? [...originalRows].sort((left, right) => sortRows(left[column], right[column], sortDirection)) : originalRows;
+    const filteredRows = originalRows.filter((row) => [...filters.entries()].every(([filterColumn, filter]) => valueMatchesFilter(row, filterColumn, filter.operator, filter.value)));
+    rows = sortDirection ? [...filteredRows].sort((left, right) => sortRows(left[column], right[column], sortDirection)) : filteredRows;
+    exportRows = rows;
     scroller.scrollTop = 0;
     renderHeader();
     renderSlice();
     updateMap(rows, false);
+  });
+  const updateFilter = (column, field, value) => {
+    const current = filters.get(column) || { operator: '', value: '' };
+    current[field] = value;
+    if (!current.operator && current.value === '') filters.delete(column);
+    else filters.set(column, current);
+    applyFilters();
+  };
+  head.addEventListener('input', (event) => {
+    const input = event.target.closest('[data-filter-value]');
+    if (input) updateFilter(input.dataset.filterValue, 'value', input.value);
+  });
+  head.addEventListener('change', (event) => {
+    const select = event.target.closest('[data-filter-operator]');
+    if (select) updateFilter(select.dataset.filterOperator, 'operator', select.value);
   });
   scroller.addEventListener('scroll', renderSlice, { passive: true });
   scroller.addEventListener('click', (event) => {
@@ -895,6 +952,11 @@ function renderTable(arrowTable) {
     });
   });
   resultView = { scroller, renderSlice };
+  filterButton.onclick = () => {
+    filtersVisible = !filtersVisible;
+    filterButton.setAttribute('aria-pressed', String(filtersVisible));
+    renderHeader();
+  };
   renderHeader();
   renderSlice();
 }
@@ -1292,6 +1354,7 @@ async function runQuery(sqlOverride) {
   } catch (reason) {
     resultMeta.textContent = '';
     resultToggle.disabled = true;
+    filterButton.disabled = true;
     exportCsvButton.disabled = true;
     exportGeoJsonButton.disabled = true;
     tableWrap.innerHTML = '<p class="placeholder">Проверьте SQL и попробуйте снова.</p>';
@@ -1334,6 +1397,10 @@ async function initialise() {
 runButton.addEventListener('click', () => runQuery());
 exportCsvButton.addEventListener('click', exportCsv);
 exportGeoJsonButton.addEventListener('click', exportGeoJson);
+document.addEventListener('keydown', (event) => {
+  if (!event.ctrlKey && !event.metaKey || event.altKey || event.key.toLowerCase() !== 'f') return;
+  if (!filterButton.disabled && filterButton.getAttribute('aria-pressed') !== 'true') filterButton.click();
+});
 resultToggle.addEventListener('click', () => setTableCollapsed(resultToggle.getAttribute('aria-expanded') === 'true'));
 shareButton.addEventListener('click', shareQuery);
 imageryToggle.addEventListener('change', () => setBaseMap(imageryToggle.checked));
