@@ -1055,12 +1055,17 @@ function jsonValue(value) {
 }
 
 function exportGeoJson() {
-  const features = exportRows.flatMap((row) => coordinatePointsFor(row).map(({ coordinates, kind }) => ({
+  const coordinateColumn = (column) => {
+    const normalized = column.toLowerCase();
+    return normalized === 'latitude' || normalized === 'longitude';
+  };
+  const features = exportRows.flatMap((row) => coordinatePointsFor(row).map(({ coordinates }) => ({
     type: 'Feature',
     geometry: { type: 'Point', coordinates },
     properties: {
-      ...Object.fromEntries(exportColumns.map((column) => [column, jsonValue(row[column])])),
-      point_kind: kind,
+      ...Object.fromEntries(exportColumns
+        .filter((column) => !coordinateColumn(column))
+        .map((column) => [column, jsonValue(row[column])])),
     },
   })));
   downloadText(`${JSON.stringify({ type: 'FeatureCollection', features }, null, 2)}\n`, 'query-result.geojson', 'application/geo+json');
