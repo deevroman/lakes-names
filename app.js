@@ -165,13 +165,14 @@ WITH gkgn AS (
     longitude AS osm_longitude,
     trim(regexp_replace(
       regexp_replace(
-        lower(replace(name, 'ё', 'е')),
+        lower(replace(split.name_part, 'ё', 'е')),
         '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
         ' ', 'g'
       ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM water_objects
+  CROSS JOIN unnest(string_split(name, ' / ')) AS split(name_part)
   WHERE name IS NOT NULL
     AND regexp_matches(name, '[А-Яа-яЁё]')
     AND NOT regexp_matches(name, '^возера')
@@ -241,13 +242,14 @@ WITH gkgn AS (
     *,
     trim(regexp_replace(
       regexp_replace(
-        lower(replace(name, 'ё', 'е')),
+        lower(replace(split.name_part, 'ё', 'е')),
         '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
         ' ', 'g'
       ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM water_objects
+  CROSS JOIN unnest(string_split(name, ' / ')) AS split(name_part)
   WHERE name IS NOT NULL
     AND regexp_matches(name, '[А-Яа-яЁё]')
     AND NOT regexp_matches(name, '^возера')
@@ -296,13 +298,14 @@ WITH gkgn AS (
     *,
     trim(regexp_replace(
       regexp_replace(
-        lower(replace(name, 'ё', 'е')),
+        lower(replace(split.name_part, 'ё', 'е')),
         '(^|[[:space:][:punct:]])(озеро|озера|пруд|пруды|болото|болота|водохранилище|старица|старицы|залив|бухта|губа|лиман|лагуна|ильмень|протока|канал|рукав)([[:space:][:punct:]]|$)',
         ' ', 'g'
       ),
       '[[:punct:][:space:]]+', ' ', 'g'
     )) AS name_key
   FROM water_objects
+  CROSS JOIN unnest(string_split(name, ' / ')) AS split(name_part)
   WHERE name IS NOT NULL
     AND regexp_matches(name, '[А-Яа-яЁё]')
     AND NOT regexp_matches(name, '^возера')
@@ -312,7 +315,7 @@ WITH gkgn AS (
     AND latitude BETWEEN -90 AND 90
     AND longitude BETWEEN -180 AND 180
 )
-SELECT o.* EXCLUDE (name_key)
+SELECT o.* EXCLUDE (name_key, name_part)
 FROM osm AS o
 WHERE NOT EXISTS (
   SELECT 1
