@@ -1300,6 +1300,7 @@ function mapPopupContent(row) {
     && row.osm_id !== null
     && row.osm_id !== undefined
     && String(row.osm_id).trim() !== '';
+  const coordinates = coordinatesFor(row);
   if (hasOsmId) {
     const title = document.createElement('a');
     title.href = `https://www.openstreetmap.org/${encodeURIComponent(row.osm_type)}/${encodeURIComponent(row.osm_id)}`;
@@ -1307,17 +1308,33 @@ function mapPopupContent(row) {
     title.rel = 'noopener noreferrer';
     title.textContent = `${row.osm_type}/${row.osm_id}`;
     content.append(title);
-  } else {
-    const coordinates = coordinatesFor(row);
-    if (coordinates) {
-      const [longitude, latitude] = coordinates;
-      const location = document.createElement('a');
-      location.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(latitude)}&mlon=${encodeURIComponent(longitude)}#map=18/${latitude}/${longitude}`;
-      location.target = '_blank';
-      location.rel = 'noopener noreferrer';
-      location.textContent = 'Открыть координаты в OpenStreetMap';
-      content.append(location);
-    }
+  } else if (coordinates) {
+    const [longitude, latitude] = coordinates;
+    const location = document.createElement('a');
+    location.href = `https://www.openstreetmap.org/?mlat=${encodeURIComponent(latitude)}&mlon=${encodeURIComponent(longitude)}#map=18/${latitude}/${longitude}`;
+    location.target = '_blank';
+    location.rel = 'noopener noreferrer';
+    location.textContent = 'Открыть координаты в OSM';
+    content.append(location);
+  }
+  if (coordinates) {
+    const [longitude, latitude] = coordinates;
+    if (content.lastChild) content.append(' · ');
+    const josm = document.createElement('a');
+    const delta = 0.001;
+    const josmUrl = `http://localhost:8111/load_and_zoom?left=${encodeURIComponent(longitude - delta)}&right=${encodeURIComponent(longitude + delta)}&top=${encodeURIComponent(latitude + delta)}&bottom=${encodeURIComponent(latitude - delta)}`;
+    josm.href = josmUrl;
+    josm.textContent = 'Открыть в JOSM';
+    josm.addEventListener('click', async (event) => {
+      event.preventDefault();
+      try {
+        await fetch(josmUrl, { mode: 'no-cors' });
+        josm.title = 'Запрос отправлен в JOSM';
+      } catch {
+        josm.title = 'Не удалось подключиться к JOSM Remote Control';
+      }
+    });
+    content.append(josm);
   }
 
   const tags = tagsFromJson(row.tags_json);
