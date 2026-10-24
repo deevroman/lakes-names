@@ -647,7 +647,7 @@ function setBaseMap(showImagery) {
   if (!map.getSource('esri-imagery')) {
     map.addSource('esri-imagery', {
       type: 'raster',
-      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+      tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}?blankTile=false'],
       tileSize: 256,
       attribution: '© Esri',
     });
