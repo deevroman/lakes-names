@@ -99,6 +99,27 @@ jobs:
           sed -i -E "s/(OpenStreetMap России от )[0-9]{4}-[0-9]{2}-[0-9]{2}/\\1${DUMP_DATE}/" index.html
           grep -F "OpenStreetMap России от ${DUMP_DATE}" index.html
 
+      - name: Update the dataset date list
+        run: |
+          python3 - <<'PY'
+          import json
+          import re
+          from pathlib import Path
+
+          dates = sorted(
+              (
+                  match.group(1)
+                  for path in Path('data').glob('water-objects-*.parquet')
+                  if (match := re.fullmatch(r'water-objects-(\d{4}-\d{2}-\d{2})\.parquet', path.name))
+              ),
+              reverse=True,
+          )
+          Path('data/datasets.json').write_text(
+              json.dumps({'dates': dates}, ensure_ascii=False, indent=2) + '\n',
+              encoding='utf-8',
+          )
+          PY
+
       - name: Commit the new dump to master
         env:
           DUMP_DATE: ${{ steps.dump.outputs.date }}
@@ -106,7 +127,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add "data/water-objects-${DUMP_DATE}.parquet" data/dataset.json index.html
+          git add "data/water-objects-${DUMP_DATE}.parquet" data/dataset.json data/datasets.json index.html
           if git diff --cached --quiet; then
             echo 'No data changes to commit.'
             exit 0

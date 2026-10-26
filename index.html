@@ -106,6 +106,7 @@ SELECT * FROM water_objects;
                   <button id="query-osm-gkgn-unmatched" type="button" data-query="osm-gkgn-unmatched">OSM без матча</button>
                 </div>
               </details>
+              <button id="dataset-settings" type="button" disabled>Настройки β</button>
             </div>
             <script>
               try {
@@ -144,6 +145,32 @@ SELECT * FROM water_objects;
         </div>
         <section id="group-flow" class="group-flow" aria-live="polite" hidden></section>
       </section>
+
+      <dialog id="dataset-settings-dialog" aria-labelledby="dataset-settings-title">
+        <form method="dialog" class="settings-dialog">
+          <h2 id="dataset-settings-title">Настройки датасета</h2>
+          <p class="settings-current">Текущий датасет: <strong id="dataset-current">по умолчанию</strong></p>
+          <fieldset>
+            <legend>Датасет по дате</legend>
+            <div class="settings-row">
+              <label for="dataset-date">Дата дампа</label>
+              <select id="dataset-date" aria-label="Дата дампа"></select>
+              <button id="load-dataset-date" type="button">Загрузить</button>
+            </div>
+            <p class="settings-help">Будет загружен файл <code>water-objects-YYYY-MM-DD.parquet</code> из каталога <code>data</code>.</p>
+          </fieldset>
+          <fieldset>
+            <legend>Свой CSV</legend>
+            <label class="settings-file" for="dataset-csv">Выберите CSV- или TXT-файл</label>
+            <input id="dataset-csv" type="file" accept=".csv,.txt,text/csv,text/plain" />
+            <p class="settings-help">CSV читается с заголовком, TXT — без заголовка, по одной строке в колонке <code>value</code>.</p>
+          </fieldset>
+          <p id="dataset-status" class="settings-status" role="status" aria-live="polite"></p>
+          <div class="settings-actions">
+            <button id="close-dataset-settings" type="submit">Закрыть</button>
+          </div>
+        </form>
+      </dialog>
 
     </main>
     <script src="vendor/codemirror/codemirror.min.js"></script>

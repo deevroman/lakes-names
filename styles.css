@@ -56,6 +56,7 @@ textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--de
 .examples-group summary:hover { border-color: var(--deep); color: var(--deep); background: #effaf8; }
 .examples-group-items { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .examples-group:not([open]) .examples-group-items { display: none; }
+#dataset-settings { color: #315c61; }
 #share-query { position: relative; display: inline-grid; width: 32px; padding: 7px; place-items: center; border-color: #c6d9d6; color: #3e6669; background: #f8fbfa; }
 #share-query:hover { background: #effaf8; }
 #share-query svg { width: 15px; height: 15px; fill: currentColor; stroke: currentColor; stroke-linecap: round; stroke-width: 1.8; }
@@ -76,6 +77,23 @@ textarea:focus { outline: 3px solid rgb(8 121 121 / 16%); border-color: var(--de
 .filter-control select, .filter-control input { min-width: 0; border: 1px solid #c6d9d6; border-radius: 4px; padding: 3px 4px; color: #315c61; background: #fffefa; font: inherit; font-size: .72rem; }
 .filter-control select { width: 3.2em; flex: 0 0 auto; }
 .filter-control input { width: 100%; }
+.settings-dialog { width: min(520px, calc(100vw - 32px)); margin: 0; padding: 20px; border: 0; color: var(--ink); background: #fffefa; }
+.settings-dialog h2 { margin: 0 0 8px; font-size: 1.1rem; }
+.settings-current { margin: 0 0 16px; color: var(--muted); font-size: .82rem; }
+.settings-dialog fieldset { margin: 0 0 14px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; }
+.settings-dialog legend { padding: 0 5px; color: #366267; font-size: .78rem; font-weight: 700; }
+.settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.settings-row label, .settings-file { color: #315c61; font-size: .8rem; }
+.settings-dialog select, .settings-dialog input[type="file"] { min-width: 0; border: 1px solid #b5ccca; border-radius: 5px; padding: 5px; color: var(--ink); background: #f8fbfa; font: inherit; font-size: .78rem; }
+.settings-row select { flex: 1 1 145px; }
+.settings-dialog button { border: 1px solid #c6d9d6; border-radius: 6px; padding: 6px 9px; color: #315c61; background: transparent; font-size: .78rem; }
+.settings-dialog button:hover { border-color: var(--deep); color: var(--deep); background: #effaf8; }
+.settings-help { margin: 8px 0 0; color: var(--muted); font-size: .73rem; }
+.settings-status { min-height: 1.2em; margin: 0 0 14px; color: var(--muted); font-size: .78rem; }
+.settings-status.is-error { color: #9c3325; }
+.settings-actions { display: flex; justify-content: flex-end; }
+#dataset-settings-dialog { max-width: calc(100vw - 20px); padding: 0; border: 1px solid var(--line); border-radius: 12px; background: #fffefa; box-shadow: 0 12px 50px rgb(12 61 58 / 22%); }
+#dataset-settings-dialog::backdrop { background: rgb(16 43 48 / 28%); }
 .result-toggle-mark { display: inline-block; font-size: .9rem; line-height: 1; transition: transform 120ms ease; }
 #result-toggle[aria-expanded="true"] .result-toggle-mark { transform: rotate(90deg); }
 .table-wrap { min-height: 138px; border-top: 1px solid var(--line); }

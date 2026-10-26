@@ -6,6 +6,7 @@ let datasetUrl = new URL('./data/water-objects.parquet', window.location.href).h
 const gkgnDatasetUrl = new URL('./data/gkgn.parquet', window.location.href).href;
 let dumpDate = '2026-09-24';
 const TABLE = 'water_objects';
+const UPLOADED_TABLE = 'uploaded_data';
 const GKGN_TABLE = 'gkgn_objects';
 const ROW_HEIGHT = 38;
 const VISIBLE_ROWS = 120;
@@ -513,6 +514,13 @@ const resultToggle = $('#result-toggle');
 const filterButton = $('#toggle-filters');
 const exportCsvButton = $('#export-csv');
 const exportGeoJsonButton = $('#export-geojson');
+const datasetSettingsButton = $('#dataset-settings');
+const datasetSettingsDialog = $('#dataset-settings-dialog');
+const datasetDateInput = $('#dataset-date');
+const loadDatasetDateButton = $('#load-dataset-date');
+const datasetCsvInput = $('#dataset-csv');
+const datasetCurrent = $('#dataset-current');
+const datasetStatus = $('#dataset-status');
 const tableWrap = $('#table-wrap');
 const groupFlow = $('#group-flow');
 const error = $('#error');
@@ -552,6 +560,7 @@ if (queryEditor) {
 }
 
 let connection;
+let database;
 let resultView;
 let mapSelectionTimer;
 let mapRows = [];
@@ -560,6 +569,7 @@ let exportRows = [];
 let exportColumns = [];
 let activeFilters = {};
 let pendingSharedFilters;
+let customDatasetCounter = 0;
 let hasUserQuery = false;
 let isSettingQueryText = false;
 
@@ -833,17 +843,110 @@ async function shareQuery() {
 async function loadDatasetMetadata() {
   try {
     const response = await fetch(new URL('./data/dataset.json', window.location.href), { cache: 'no-store' });
-    if (!response.ok) return;
-    const metadata = await response.json();
-    if (typeof metadata.parquet === 'string' && /^water-objects(?:-\d{4}-\d{2}-\d{2})?\.parquet$/.test(metadata.parquet)) {
-      datasetUrl = new URL(`./data/${metadata.parquet}`, window.location.href).href;
-    }
-    if (typeof metadata.dump_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(metadata.dump_date)) {
-      dumpDate = metadata.dump_date;
+    if (response.ok) {
+      const metadata = await response.json();
+      if (typeof metadata.parquet === 'string' && /^water-objects(?:-\d{4}-\d{2}-\d{2})?\.parquet$/.test(metadata.parquet)) {
+        datasetUrl = new URL(`./data/${metadata.parquet}`, window.location.href).href;
+      }
+      if (typeof metadata.dump_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(metadata.dump_date)) {
+        dumpDate = metadata.dump_date;
+      }
     }
     queries.all = allDataQuery();
   } catch {
     // The checked-in baseline remains usable if the metadata request fails.
+  }
+  try {
+    const response = await fetch(new URL('./data/datasets.json', window.location.href), { cache: 'no-store' });
+    const metadata = response.ok ? await response.json() : {};
+    const dates = Array.isArray(metadata.dates)
+      ? metadata.dates.filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+      : [];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dumpDate) && !dates.includes(dumpDate)) dates.push(dumpDate);
+    dates.sort().reverse();
+    datasetDateInput.replaceChildren(...dates.map((date) => new Option(date, date)));
+    datasetDateInput.value = dumpDate;
+  } catch {
+    datasetDateInput.replaceChildren();
+  }
+  datasetCurrent.textContent = dumpDate;
+}
+
+function setDatasetStatus(message, isError = false) {
+  datasetStatus.textContent = message;
+  datasetStatus.classList.toggle('is-error', isError);
+}
+
+async function activateWaterDataset({ fileName, url, buffer, label, custom = false }) {
+  const previousAllQuery = queries.all;
+  if (buffer) {
+    await database.registerFileBuffer(fileName, buffer);
+  } else {
+    await database.registerFileURL(fileName, url, duckdb.DuckDBDataProtocol.HTTP, false);
+  }
+  const source = custom && fileName.endsWith('.txt')
+    ? `read_csv('${fileName}', header=false, columns={'value': 'VARCHAR'}, delim=chr(1))`
+    : `'${fileName}'`;
+  const tableName = custom ? UPLOADED_TABLE : TABLE;
+  await connection.query(`CREATE OR REPLACE VIEW ${tableName} AS SELECT * FROM ${source}`);
+  datasetUrl = url || '';
+  dumpDate = label;
+  queries.all = allDataQuery();
+  datasetCurrent.textContent = label;
+  datasetDateInput.value = /^\d{4}-\d{2}-\d{2}$/.test(label) ? label : '';
+
+  if (custom) {
+    setQueryText(`SELECT * FROM ${UPLOADED_TABLE};`, false);
+    setActiveExample();
+  } else if (queryText() === previousAllQuery) {
+    setQueryText(queries.all, false);
+    setActiveExample('all');
+  }
+  await runQuery();
+}
+
+async function loadDatasetByDate() {
+  const date = datasetDateInput.value;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    setDatasetStatus('Укажите дату в формате ГГГГ-ММ-ДД.', true);
+    return;
+  }
+  loadDatasetDateButton.disabled = true;
+  datasetCsvInput.disabled = true;
+  setDatasetStatus('Проверяю наличие датасета…');
+  try {
+    const fileName = `water-objects-${date}.parquet`;
+    const url = new URL(`./data/${fileName}`, window.location.href).href;
+    const response = await fetch(url, { method: 'HEAD', cache: 'no-store' });
+    if (!response.ok) throw new Error(`Файл за ${date} не найден.`);
+    setDatasetStatus('Загружаю датасет…');
+    await activateWaterDataset({ fileName, url, label: date });
+    setDatasetStatus(`Загружен датасет за ${date}.`);
+  } catch (reason) {
+    setDatasetStatus(reason.message || 'Не удалось загрузить датасет.', true);
+  } finally {
+    loadDatasetDateButton.disabled = false;
+    datasetCsvInput.disabled = false;
+  }
+}
+
+async function loadCustomDataset(file) {
+  if (!file) return;
+  loadDatasetDateButton.disabled = true;
+  datasetCsvInput.disabled = true;
+  setDatasetStatus('Загружаю CSV…');
+  try {
+    const extension = /\.txt$/i.test(file.name) ? 'txt' : 'csv';
+    const fileName = `custom-upload-${++customDatasetCounter}.${extension}`;
+    const buffer = new Uint8Array(await file.arrayBuffer());
+    await activateWaterDataset({ fileName, buffer, label: file.name, custom: true });
+    setDatasetStatus(`Загружен ${extension.toUpperCase()}: ${file.name}. Таблица: ${UPLOADED_TABLE}. Пример: SELECT * FROM ${UPLOADED_TABLE};`);
+  } catch (reason) {
+    setDatasetStatus(reason.message || 'Не удалось загрузить CSV.', true);
+  } finally {
+    loadDatasetDateButton.disabled = false;
+    datasetCsvInput.disabled = false;
+    datasetCsvInput.value = '';
   }
 }
 
@@ -1088,7 +1191,7 @@ function listValues(value) {
       const parsed = JSON.parse(value);
       return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return [];
+      return value === '' ? [] : [value];
     }
   }
   return [];
@@ -1100,7 +1203,8 @@ function shortGroupLabel(label) {
 }
 
 function renderGroupFlow(rows, columns) {
-  if (!['form', 'uses', 'names'].every((column) => columns.includes(column))) {
+  const valuesColumn = columns.includes('values') ? 'values' : columns.includes('names') ? 'names' : null;
+  if (!valuesColumn || !['form', 'uses'].every((column) => columns.includes(column))) {
     clearGroupFlow();
     return;
   }
@@ -1108,7 +1212,7 @@ function renderGroupFlow(rows, columns) {
   const groups = rows.map((row, order) => ({
     form: String(row.form ?? ''),
     uses: Number(row.uses),
-    names: listValues(row.names).map(String),
+    values: listValues(row[valuesColumn]).map(String),
     order,
   })).filter((group) => group.form && Number.isFinite(group.uses) && group.uses >= 0);
   const total = groups.reduce((sum, group) => sum + group.uses, 0);
@@ -1193,7 +1297,9 @@ function renderGroupFlow(rows, columns) {
   }).join('');
 
   groupFlow.hidden = false;
-  groupFlow.innerHTML = `<h2 class="group-flow-heading">Расщепление по формам <span>${total.toLocaleString('ru-RU')} объектов</span></h2><div class="group-flow-layout"><div class="group-flow-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="group-flow-svg-title"><title id="group-flow-svg-title">Распределение объектов water=lake по формам имени</title><rect class="group-flow-source" x="20" y="${top}" width="190" height="${sourceHeight}" rx="4"></rect><text class="group-flow-source-label" x="115" y="${height / 2 - 8}" text-anchor="middle">water=lake</text><text class="group-flow-source-label group-flow-node-count" x="115" y="${height / 2 + 12}" text-anchor="middle">${total.toLocaleString('ru-RU')}</text>${links}${nodeMarkup}</svg></div><div class="group-flow-detail"><p class="group-flow-detail-title"></p><p class="group-flow-detail-meta"></p><ol class="group-flow-names"></ol></div></div>`;
+  const flowTitle = valuesColumn === 'names' ? 'Расщепление по формам' : 'Расщепление по группам';
+  const flowDescription = valuesColumn === 'names' ? 'Распределение объектов water=lake по формам имени' : 'Распределение значений по группам';
+  groupFlow.innerHTML = `<h2 class="group-flow-heading">${flowTitle} <span>${total.toLocaleString('ru-RU')} объектов</span></h2><div class="group-flow-layout"><div class="group-flow-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-labelledby="group-flow-svg-title"><title id="group-flow-svg-title">${flowDescription}</title><rect class="group-flow-source" x="20" y="${top}" width="190" height="${sourceHeight}" rx="4"></rect><text class="group-flow-source-label" x="115" y="${height / 2 - 8}" text-anchor="middle">${valuesColumn === 'names' ? 'water=lake' : 'значения'}</text><text class="group-flow-source-label group-flow-node-count" x="115" y="${height / 2 + 12}" text-anchor="middle">${total.toLocaleString('ru-RU')}</text>${links}${nodeMarkup}</svg></div><div class="group-flow-detail"><p class="group-flow-detail-title"></p><p class="group-flow-detail-meta"></p><ol class="group-flow-names"></ol></div></div>`;
 
   const detailTitle = groupFlow.querySelector('.group-flow-detail-title');
   const detailMeta = groupFlow.querySelector('.group-flow-detail-meta');
@@ -1202,18 +1308,23 @@ function renderGroupFlow(rows, columns) {
     const group = nodes.get(code);
     if (!group) return;
     groupFlow.querySelectorAll('.group-flow-node').forEach((node) => node.classList.toggle('is-selected', node.dataset.flowKey === code));
-    const names = [...new Set(group.leaves.flatMap((leaf) => leaf.names))].sort((left, right) => left.localeCompare(right, 'ru'));
+    const values = [...new Set(group.leaves.flatMap((leaf) => leaf.values))].sort((left, right) => left.localeCompare(right, 'ru'));
     detailTitle.textContent = group.label;
-    detailMeta.textContent = `${names.length.toLocaleString('ru-RU')} названий · ${group.uses.toLocaleString('ru-RU')} объектов`;
+    detailMeta.textContent = `${values.length.toLocaleString('ru-RU')} значений · ${group.uses.toLocaleString('ru-RU')} объектов`;
     const fragment = document.createDocumentFragment();
-    names.forEach((name) => {
+    values.forEach((value) => {
       const item = document.createElement('li');
+      if (valuesColumn !== 'names') {
+        item.textContent = value;
+        fragment.append(item);
+        return;
+      }
       const link = document.createElement('a');
-      link.href = overpassTurboUrl(name);
+      link.href = overpassTurboUrl(value);
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      link.textContent = name;
-      link.setAttribute('aria-label', `Найти «${name}» в Overpass Turbo`);
+      link.textContent = value;
+      link.setAttribute('aria-label', `Найти «${value}» в Overpass Turbo`);
       item.append(link);
       fragment.append(item);
     });
@@ -1378,13 +1489,14 @@ function virtualGap(height, columns) {
 
 function tableCell(row, column) {
   const value = printable(row[column]);
+  const title = value.length > 1000 ? value.slice(0, 1000) : value;
   const className = columnClass(column);
   const classAttribute = className ? ` class="${className}"` : '';
   if (column === 'osm_id' && row.osm_type && value !== '—') {
     const url = `https://www.openstreetmap.org/${encodeURIComponent(row.osm_type)}/${encodeURIComponent(value)}`;
     return `<td${classAttribute}><a href="${url}" target="_blank" rel="noopener noreferrer" title="OpenStreetMap: ${escapeAttr(row.osm_type)}/${escapeAttr(value)}">${escapeHtml(value)}</a></td>`;
   }
-  return `<td${classAttribute} title="${escapeAttr(value)}">${escapeHtml(value)}</td>`;
+  return `<td${classAttribute} title="${escapeAttr(title)}">${escapeHtml(value)}</td>`;
 }
 
 function columnClass(column) {
@@ -1455,6 +1567,7 @@ async function initialise() {
     await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
     URL.revokeObjectURL(workerUrl);
     await db.registerFileURL('water-objects.parquet', datasetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
+    database = db;
     connection = await db.connect();
     await connection.query(`CREATE VIEW ${TABLE} AS SELECT * FROM 'water-objects.parquet'`);
     const gkgnAvailable = await loadOptionalGkgnDataset(db, connection);
@@ -1462,6 +1575,9 @@ async function initialise() {
     if (gkgnButton) gkgnButton.hidden = !gkgnAvailable;
     const gkgnGroup = gkgnButton?.closest('details');
     if (gkgnGroup) gkgnGroup.hidden = !gkgnAvailable;
+    datasetSettingsButton.disabled = false;
+    datasetDateInput.value = dumpDate.match(/^\d{4}-\d{2}-\d{2}$/) ? dumpDate : '';
+    datasetCurrent.textContent = dumpDate;
     runButton.disabled = false;
     if (!hasUserQuery) {
       setQueryText(queries.all, false);
@@ -1483,6 +1599,12 @@ document.addEventListener('keydown', (event) => {
 });
 resultToggle.addEventListener('click', () => setTableCollapsed(resultToggle.getAttribute('aria-expanded') === 'true'));
 shareButton.addEventListener('click', shareQuery);
+datasetSettingsButton.addEventListener('click', () => {
+  setDatasetStatus('');
+  datasetSettingsDialog.showModal();
+});
+loadDatasetDateButton.addEventListener('click', loadDatasetByDate);
+datasetCsvInput.addEventListener('change', () => loadCustomDataset(datasetCsvInput.files?.[0]));
 imageryToggle.addEventListener('change', () => setBaseMap(imageryToggle.checked));
 if (!queryEditor) {
   queryBox.addEventListener('keydown', (event) => {
