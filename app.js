@@ -1569,6 +1569,9 @@ async function initialise() {
     await db.registerFileURL('water-objects.parquet', datasetUrl, duckdb.DuckDBDataProtocol.HTTP, false);
     database = db;
     connection = await db.connect();
+    const extensionRepository = new URL('./vendor/duckdb/extensions', import.meta.url).href;
+    await connection.query(`SET custom_extension_repository = '${extensionRepository}'`);
+    await connection.query('INSTALL parquet; LOAD parquet;');
     await connection.query(`CREATE VIEW ${TABLE} AS SELECT * FROM 'water-objects.parquet'`);
     const gkgnAvailable = await loadOptionalGkgnDataset(db, connection);
     const gkgnButton = document.querySelector('[data-query="gkgn"]');
